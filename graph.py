@@ -1,6 +1,7 @@
 class Graph:
     def __init__(self):
         self.adjacency_list = {}
+        self.edge_cache = set()
 
     def add_vertex(self, vertex):
         if vertex not in self.adjacency_list:
@@ -28,12 +29,14 @@ class Graph:
         return list(self.adjacency_list.keys())
 
     def get_edges(self):
-        edges = []
+        if len(self.edge_cache) > 0:
+            return self.edge_cache
+        edges = set()
         for vertex in self.adjacency_list:
             for adjacent_vertex in self.adjacency_list[vertex]:
-                if {vertex, adjacent_vertex} not in edges:
-                    edges.append({vertex, adjacent_vertex})
-        return edges
+                edges.add((min(vertex, adjacent_vertex), max(vertex, adjacent_vertex)))
+        self.edge_cache = edges
+        return self.edge_cache
 
     def display(self):
         for vertex in self.adjacency_list:

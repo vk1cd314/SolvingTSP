@@ -1,50 +1,25 @@
-from graph import Graph
+from utils import gen_random_conn_graph, plot_graph
 import random
 
-def generate_random_fully_connected_graph(n, width=100, height=100):
-    graph = Graph()
-    
-    max_points = width * height
-    if n > max_points:
-        raise ValueError(f"Cannot select {n} points from a {width}x{height} grid, as it only contains {max_points} points.")
-    
-    all_points = [(x, y) for x in range(width) for y in range(height)]
-    
-    selected_points = random.sample(all_points, n)
-    
-    for point in selected_points:
-        graph.add_vertex(point)
-    
-    for i in range(len(selected_points)):
-        for j in range(i + 1, len(selected_points)):
-            graph.add_edge(selected_points[i], selected_points[j])
+random_graph = gen_random_conn_graph(20)
+plot_graph(random_graph, add_edges=True)
 
-    return graph
+N = 20
+print(len(random_graph.get_edges()))
+for edge in random_graph.get_edges():
+    # 2 points fixed 
+    u, v = edge
+    have_pts = set()
+    for vertex in random_graph.get_vertices():
+        if u != vertex and v != vertex:
+            have_pts.add(vertex)
+    
+    freq_quads = []
+    
+    while len(freq_quads) < N and len(have_pts) >= 2:
+        pt1, pt2 = random.sample(have_pts, 2)
+        random_graph.remove_vertex(pt1)
+        random_graph.remove_vertex(pt2)
+        freq_quads.append((u, v, pt1, pt2))
 
-random_graph = generate_random_fully_connected_graph(100)
-random_graph.display()
-
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import networkx as nx
-
-def plot_graph(graph, filename):
-    G = nx.Graph()
     
-    for vertex in graph.get_vertices():
-        G.add_node(vertex)
-    
-    # for vertex in graph.get_vertices():
-    #     for adjacent_vertex in graph.adjacency_list[vertex]:
-    #         G.add_edge(vertex, adjacent_vertex)
-    
-    pos = {vertex: vertex for vertex in graph.get_vertices()}
-    
-    plt.figure(figsize=(10, 10))
-    nx.draw(G, pos, with_labels=True, node_size=100, node_color='skyblue', font_size=8, font_color='black')
-    
-    plt.savefig(filename, format='PNG')
-    plt.close()
-
-plot_graph(random_graph, 'fully_connected_graph.png')
