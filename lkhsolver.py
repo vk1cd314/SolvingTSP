@@ -5,5 +5,5 @@ problem_str = requests.get('http://vrp.atd-lab.inf.puc-rio.br/media/com_vrp/inst
 problem = lkh.LKHProblem.parse(problem_str)
 print(problem)
 
-solver_path = 'LKH.exe'
+solver_path = 'LKH'
 print(lkh.solve(solver_path, problem=problem, max_trials=100, runs=10))
