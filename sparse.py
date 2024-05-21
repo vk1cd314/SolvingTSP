@@ -1,9 +1,40 @@
 from utils import gen_random_conn_graph, plot_graph
 import random
 import math
+import matplotlib.pyplot as plt
+
+
+
+def format_to_tsplib(data, filename='graph.tsp'):
+    # Extract all unique nodes
+    nodes = set()
+    for edge in data:
+        nodes.update(edge)
+
+    nodes = sorted(nodes)
+
+    # Create a mapping from node coordinates to node index
+    node_index = {node: i + 1 for i, node in enumerate(nodes)}
+
+    # Write the TSPLIB format
+    with open(filename, 'w') as f:
+        f.write('NAME: Graph\n')
+        f.write('TYPE: TSP\n')
+        f.write(f'DIMENSION: {len(nodes)}\n')
+        f.write('EDGE_WEIGHT_TYPE: EUC_2D\n')
+        f.write('NODE_COORD_SECTION\n')
+
+        for node, index in node_index.items():
+            f.write(f'{index} {node[0]} {node[1]}\n')
+
+        f.write('EOF\n')
+
+    print(f"TSPLIB file '{filename}' has been created.")
 
 random_graph = gen_random_conn_graph(20)
 plot_graph(random_graph, add_edges=True)
+
+format_to_tsplib(random_graph.get_edges())
 
 N = 20
 print(len(random_graph.get_edges()))
@@ -69,6 +100,7 @@ def getFreq(a, b, c, d):
 
 
 edge_freq = {}   
+edge_freq_avg = {}
 
 for edge in random_graph.get_edges():
     # 2 points fixed 
@@ -78,18 +110,86 @@ for edge in random_graph.get_edges():
         if u != vertex and v != vertex:
             have_pts.add(vertex)
     
-    freq_quads = []
+    freq_quads = set()
     edge_freq[edge] = 0
     
     while len(freq_quads) < N and len(have_pts) >= 2:
-        pt1, pt2 = random.sample(have_pts, 2)
-        random_graph.remove_vertex(pt1)
-        random_graph.remove_vertex(pt2)
+        pt1, pt2 = random.sample(sorted(have_pts), 2)
+        # random_graph.remove_vertex(pt1)
+        # random_graph.remove_vertex(pt2)
         freq_dict = getFreq(u, v, pt1, pt2)
-        edge_freq[edge] += freq_dict[f'{u, v}']
-        freq_quads.append((u, v, pt1, pt2))
+        if (u, v, min(pt1, pt2), max(pt1, pt2)) not in freq_quads:
+            edge_freq[edge] += freq_dict[f'{u, v}']
+        freq_quads.add((u, v, min(pt1, pt2), max(pt1, pt2)))
+    edge_freq_avg[edge] = edge_freq[edge] / N
+
+sorted_freq = sorted(edge_freq_avg.items(), key=lambda item: item[1])
+ 
+sorted_data = sorted(sorted_freq, key=lambda x: x[1], reverse=True)
+
+# Step 2: Calculate the number of elements corresponding to the top 2/3
+two_thirds_length = int(len(sorted_data) * (2/3))
+
+# Step 3: Select the top 2/3 elements
+top_two_thirds = sorted_data[:two_thirds_length]
+print(top_two_thirds)
+
+plt.figure(figsize=(10, 10))
+for edge, value in top_two_thirds:
+    (x1, y1), (x2, y2) = edge
+    plt.plot([x1, x2], [y1, y2], marker='o')
+
+plt.xlabel('X-coordinate')
+plt.ylabel('Y-coordinate')
+plt.title('Graph of Edges')
+plt.grid(True)
+plt.savefig("sparsegraph")
+plt.show()
 
 
 
-import math
 
+
+def euclidean_distance(p1, p2):
+    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+def format_other_to_tsplib(data, filename='graph_sparse.tsp'):
+    # Extract all unique nodes
+    nodes = set()
+    for edge, _ in data:
+        nodes.update(edge)
+
+    nodes = sorted(nodes)
+    node_index = {node: i + 1 for i, node in enumerate(nodes)}
+
+    # Write the TSPLIB format
+    with open(filename, 'w') as f:
+        f.write('NAME: Graph\n')
+        f.write('TYPE: TSP\n')
+        f.write(f'DIMENSION: {len(nodes)}\n')
+        f.write('EDGE_WEIGHT_TYPE: EXPLICIT\n')
+        f.write('EDGE_WEIGHT_FORMAT: FULL_MATRIX\n')
+        f.write('EDGE_WEIGHT_SECTION\n')
+
+        # Initialize a matrix to store the distances
+        dimension = len(nodes)
+        distance_matrix = [[0] * dimension for _ in range(dimension)]
+
+        # Fill the distance matrix
+        for edge, _ in data:
+            (x1, y1), (x2, y2) = edge
+            idx1 = node_index[(x1, y1)] - 1
+            idx2 = node_index[(x2, y2)] - 1
+            distance = euclidean_distance((x1, y1), (x2, y2))
+            distance_matrix[idx1][idx2] = distance
+            distance_matrix[idx2][idx1] = distance
+
+        # Write the distance matrix to the file
+        for row in distance_matrix:
+            f.write(' '.join(map(str, map(int, row))) + '\n')
+
+        f.write('EOF\n')
+
+    print(f"TSPLIB file '{filename}' has been created.")
+
+format_other_to_tsplib(top_two_thirds)
