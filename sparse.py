@@ -2,7 +2,7 @@ from utils import gen_random_conn_graph, plot_graph
 import random
 import math
 import matplotlib.pyplot as plt
-
+from solvis import vis_res
 
 
 def format_to_tsplib(data, filename='graph.tsp'):
@@ -153,43 +153,31 @@ plt.show()
 def euclidean_distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
-def format_other_to_tsplib(data, filename='graph_sparse.tsp'):
-    # Extract all unique nodes
+def format_to_tsplib_edge_list(data, filename='graph_sparse.tsp'):
     nodes = set()
     for edge, _ in data:
         nodes.update(edge)
 
     nodes = sorted(nodes)
-    node_index = {node: i + 1 for i, node in enumerate(nodes)}
 
-    # Write the TSPLIB format
     with open(filename, 'w') as f:
         f.write('NAME: Graph\n')
         f.write('TYPE: TSP\n')
         f.write(f'DIMENSION: {len(nodes)}\n')
         f.write('EDGE_WEIGHT_TYPE: EXPLICIT\n')
-        f.write('EDGE_WEIGHT_FORMAT: FULL_MATRIX\n')
+        f.write('EDGE_WEIGHT_FORMAT: EDGE_LIST\n')
         f.write('EDGE_WEIGHT_SECTION\n')
 
-        # Initialize a matrix to store the distances
-        dimension = len(nodes)
-        distance_matrix = [[0] * dimension for _ in range(dimension)]
-
-        # Fill the distance matrix
         for edge, _ in data:
             (x1, y1), (x2, y2) = edge
-            idx1 = node_index[(x1, y1)] - 1
-            idx2 = node_index[(x2, y2)] - 1
             distance = euclidean_distance((x1, y1), (x2, y2))
-            distance_matrix[idx1][idx2] = distance
-            distance_matrix[idx2][idx1] = distance
-
-        # Write the distance matrix to the file
-        for row in distance_matrix:
-            f.write(' '.join(map(str, map(int, row))) + '\n')
+            f.write(f'{x1} {y1} {x2} {y2} {distance:.2f}\n')
 
         f.write('EOF\n')
 
     print(f"TSPLIB file '{filename}' has been created.")
 
-format_other_to_tsplib(top_two_thirds)
+format_to_tsplib_edge_list(top_two_thirds)
+
+vis_res('graph.tsp')
+vis_res('graph_sparse.tsp')
