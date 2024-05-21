@@ -40,5 +40,5 @@ def plot_graph(graph, add_edges=False):
     plt.figure(figsize=(10, 10))
     nx.draw(G, pos, with_labels=True, node_size=100, node_color='skyblue', font_size=8, font_color='black')
     plt.savefig("densegraph")
-    plt.show()
+    # plt.show()
     

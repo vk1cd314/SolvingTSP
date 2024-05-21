@@ -3,19 +3,23 @@ import random
 import math
 import matplotlib.pyplot as plt
 from solvis import vis_res
+import argparse
+
+parser = argparse.ArgumentParser(description="Script that takes a single integer argument N.")
+
+parser.add_argument("N", type=int, help="An integer argument N")
+
+args = parser.parse_args()
 
 def format_to_tsplib(data, filename='graph.tsp'):
-    # Extract all unique nodes
     nodes = set()
     for edge in data:
         nodes.update(edge)
 
     nodes = sorted(nodes)
 
-    # Create a mapping from node coordinates to node index
     node_index = {node: i + 1 for i, node in enumerate(nodes)}
 
-    # Write the TSPLIB format
     with open(filename, 'w') as f:
         f.write('NAME: Graph\n')
         f.write('TYPE: TSP\n')
@@ -30,12 +34,12 @@ def format_to_tsplib(data, filename='graph.tsp'):
 
     print(f"TSPLIB file '{filename}' has been created.")
 
-random_graph = gen_random_conn_graph(20)
+random_graph = gen_random_conn_graph(args.N)
 plot_graph(random_graph, add_edges=True)
 
 format_to_tsplib(random_graph.get_edges())
 
-N = 20
+N = args.N
 print(len(random_graph.get_edges()))
 def getFreq(a, b, c, d):
     ab = math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2) + random.uniform(1e-7, 1e-3)
@@ -131,7 +135,7 @@ two_thirds_length = int(len(sorted_data) * (2/3))
 
 # Step 3: Select the top 2/3 elements
 top_two_thirds = sorted_data[:two_thirds_length]
-print(top_two_thirds)
+# print(top_two_thirds)
 
 plt.figure(figsize=(10, 10))
 for edge, value in top_two_thirds:
@@ -143,7 +147,7 @@ plt.ylabel('Y-coordinate')
 plt.title('Graph of Edges')
 plt.grid(True)
 plt.savefig("sparsegraph")
-plt.show()
+# plt.show()
 
 def euclidean_distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
@@ -191,5 +195,8 @@ def format_to_tsplib_edge_list(data, filename='graph_sparse.tsp'):
 
 format_to_tsplib_edge_list(top_two_thirds)
 
-vis_res('graph.tsp')
-vis_res('graph_sparse.tsp')
+ans_correct = vis_res('graph.tsp')
+ans_sparse = vis_res('graph_sparse.tsp')
+print(ans_correct, ans_sparse)
+
+assert abs(ans_correct - ans_sparse) < 1e-7

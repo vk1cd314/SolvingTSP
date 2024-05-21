@@ -6,7 +6,7 @@ def load_tsp_file(filepath):
     with open(filepath, 'r') as file:
         return file.read()
 
-def solve_tsp(problem_str, solver_path='LKH', max_trials=1000, runs=10):
+def solve_tsp(problem_str, solver_path='LKH', max_trials=10000, runs=20):
     problem = lkh.LKHProblem.parse(problem_str)
     tour = lkh.solve(solver_path, problem=problem, max_trials=max_trials, runs=runs)
     return tour, problem.node_coords
@@ -21,8 +21,8 @@ def parse_tsp_solution(tour, nodes):
     n = len(solution_coords)
     for i in range(len(solution_coords)):
         ans += euclidean_distance(solution_coords[i], solution_coords[(i + 1) % n])
-    print(ans)
-    return solution_coords
+    # print(ans)
+    return solution_coords, ans
 
 def plot_tsp_solution(solution_coords, filename):
     x_coords, y_coords = zip(*solution_coords)
@@ -34,7 +34,7 @@ def plot_tsp_solution(solution_coords, filename):
     plt.title('TSP Solution')
     plt.grid(True)
     plt.savefig(filename.split('.')[0])
-    plt.show()
+    # plt.show()
 
 def vis_res(filename):
     tsp_file = filename  # Path to your .tsp file
@@ -43,9 +43,9 @@ def vis_res(filename):
     problem_str = load_tsp_file(tsp_file)
     tour, nodes = solve_tsp(problem_str, solver_path)
     tour = tour[0]
-    print(tour)
-    print(nodes)
+    # print(tour)
+    # print(nodes)
 
-    solution_coords = parse_tsp_solution(tour, nodes)
+    solution_coords, ans = parse_tsp_solution(tour, nodes)
     plot_tsp_solution(solution_coords, filename)
-
+    return ans
