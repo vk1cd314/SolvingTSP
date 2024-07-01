@@ -1,7 +1,15 @@
 from graph import Graph
 import random
+import matplotlib
 import matplotlib.pyplot as plt
 import networkx as nx
+matplotlib.use("pgf")
+matplotlib.rcParams.update({
+    "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+})
 
 def gen_random_conn_graph(n, width=100, height=100):
     graph = Graph()
@@ -33,12 +41,23 @@ def plot_graph(graph, add_edges=False):
         for vertex in graph.get_vertices():
             for adjacent_vertex in graph.adjacency_list[vertex]:
                 G.add_edge(vertex, adjacent_vertex)
-
     
     pos = {vertex: vertex for vertex in graph.get_vertices()}
     
-    plt.figure(figsize=(10, 10))
-    nx.draw(G, pos, with_labels=True, node_size=100, node_color='skyblue', font_size=8, font_color='black')
-    plt.savefig("images/densegraph")
-    # plt.show()
+    plt.figure(figsize=(2.2, 2.2))
+    
+    for edge in G.edges():
+        x1, y1 = pos[edge[0]]
+        x2, y2 = pos[edge[1]]
+        plt.plot([x1, x2], [y1, y2], color='blue')
+    
+    for vertex in G.nodes():
+        x, y = pos[vertex]
+        plt.plot(x, y, marker='o', color='black')
+
+    plt.xlabel('X-coordinate')
+    plt.ylabel('Y-coordinate')
+    plt.title('Graph of Edges')
+    plt.grid(True)
+    plt.savefig("images/densegraph.pgf")
     

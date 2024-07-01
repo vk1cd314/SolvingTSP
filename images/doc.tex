@@ -1,0 +1,220 @@
+\documentclass[12pt]{article}
+
+\usepackage[margin=1in]{geometry} 
+\usepackage{amsmath,amsthm,amssymb}
+%\usepackage{mathastext}
+%\MTfamily{\ttdefault}\Mathastext % reload, but use \ttdefault
+\usepackage{tikz}
+\usepackage{tikz-qtree,tikz-qtree-compat}
+\usepackage{tikz,tikz-3dplot,tikz-cd,tkz-tab,tkz-euclide,pgf,pgfplots}
+\pgfplotsset{compat=newest}
+\usetikzlibrary{calc}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+
+\newenvironment{ex}[2][Problem]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+
+\newenvironment{sol}[1][Solution]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1:}]}{\end{trivlist}}
+
+\newenvironment{con}[1][Constraints]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1:}]}{\end{trivlist}}
+
+
+\begin{document}
+	
+	\noindent Battle of Brains Problem Submission \hfill {} \hfill \today
+	
+	\begin{ex}{Name TBD} 
+		Given an array of $n$ integers $A_0, A_1, \dots, A_{n-1}$ where $0 \leq i, j < n$ and \texttt{gcd}$(A_i, A_j) = 1$. Your task is to partition this array into $k$ disjoint sets $S_0, S_1, \dots S_{k - 1}$ where $1 \leq k \leq n$. \\
+		The score of partition is defined to be as:\\
+		$$\mathtt{\sum_{i=0}^{k-1}f(\prod_{x \in S_i}x)}$$
+		Here $f(n)$ is:
+		$$
+		\mathtt{
+		f(n) = \left|\{(a, b) \in \mathbb{N} \times \mathbb{N} : \texttt{gcd}(a, b) = 1 \wedge ab = n\}\right|}
+		$$
+		where $|S|$ denotes the cardinality of the set $S$, and $\mathbb{N}$ is the set of natural numbers.
+		A partition is deemed \texttt{Correct} iff all of $f(\prod_{x \in S_i}x)$ are distinct for all the sets $S_i$.
+		
+		Find the maximum possible score over all \texttt{Correct Partitions} of the array $A$. Since the answer might be too big to print it modulo $\mathtt{998244353}$.
+	\end{ex}
+	
+	\begin{con}
+		$$$$
+		\begin{itemize}
+			\item $n \leq 10^5$
+			\item $A_i \leq 10^{12}$
+		\end{itemize}
+	\end{con}
+	
+	\begin{sol}\
+		Some useful observations here are as follows:
+		\begin{itemize}
+			\item $f(n) = 2^{|g(n)|}$ where $g(n)$ is the set of prime divisors of $n$. 
+			\item Thus the count of distinct primes in each subset determine the score.			
+		\end{itemize}
+		Now the crucial thing to realize here is that, since each partition corresponds to a power of $2$ we are essentially summing up powers of $2$ over all the partitions. Given the fact that they must all be distinct, the score can be thought of a binary number e.g. \texttt{10100101}.\\
+		
+		Now suppose we have $> 1$ subsets the score will of the form \texttt{1010010}. So we have $\mathtt{2^6, 2^4, 2^1}$ as the $f$ scores. Since all pairs are coprime, the product of the elements in the subsets too will be coprime. Thus rather than summing up individual smaller powers of $2$ combining them into a larger subset yields a larger power of $2$ i.e. a larger binary number.
+		
+		Thus the answer to this problem is:\Large
+		$$2^{\sum_{i}\mathtt{g(a_i)}}$$
+
+	\end{sol}
+	
+	\begin{tikzpicture}
+		
+		% Define the coordinates for the nodes
+		\coordinate (A) at (0, 2);
+		\coordinate (B) at (1.9, 0.6);
+		\coordinate (C) at (1.2, -1.6);
+		\coordinate (D) at (-1.2, -1.6);
+		\coordinate (E) at (-1.9, 0.6);
+		
+		% Draw the nodes
+		\fill (A) circle (2pt) node[above] {A};
+		\fill (B) circle (2pt) node[right] {B};
+		\fill (C) circle (2pt) node[below right] {C};
+		\fill (D) circle (2pt) node[below left] {D};
+		\fill (E) circle (2pt) node[left] {E};
+		
+		% Draw the solution edges in red
+		\draw[red, thick] (A) -- (B);
+		\draw[red, thick] (B) -- (C);
+		\draw[red, thick] (C) -- (D);
+		\draw[red, thick] (D) -- (E);
+		\draw[red, thick] (E) -- (A);
+		
+		% Optionally, draw the non-solution edges in gray
+		\draw[gray, dashed] (A) -- (C);
+		\draw[gray, dashed] (A) -- (D);
+		\draw[gray, dashed] (B) -- (D);
+		\draw[gray, dashed] (B) -- (E);
+		\draw[gray, dashed] (C) -- (E);
+		
+	\end{tikzpicture}
+	
+	\begin{tikzpicture}
+		
+		% Define the coordinates for the nodes
+		\coordinate (depot) at (0, 0);
+		\coordinate (A) at (1, 2);
+		\coordinate (B) at (3, 1);
+		\coordinate (C) at (4, -1);
+		\coordinate (D) at (2, -2);
+		\coordinate (E) at (-1, -1);
+		\coordinate (F) at (-2, 1);
+		
+		% Draw the depot
+		\fill[blue] (depot) circle (3pt) node[above right] {Depot};
+		
+		% Draw the nodes
+		\foreach \point in {A,B,C,D,E,F} {
+			\fill (\point) circle (2pt);
+		}
+		
+		% Draw the routes
+		\draw[thick, red] (depot) -- (A) -- (B) -- (depot); % Route 1
+		\draw[thick, blue] (depot) -- (C) -- (D) -- (depot); % Route 2
+		\draw[thick, green] (depot) -- (E) -- (F) -- (depot); % Route 3
+		
+		% Optionally, draw other connections
+		\draw[dashed, gray] (A) -- (C);
+		\draw[dashed, gray] (B) -- (D);
+		\draw[dashed, gray] (C) -- (E);
+		\draw[dashed, gray] (D) -- (F);
+		\draw[dashed, gray] (E) -- (F);
+		
+	\end{tikzpicture}
+	  \begin{tikzpicture}[
+		scale=2,
+		important line/.style={thick}, dashed line/.style={dashed, thin},
+		every node/.style={color=black},
+		]
+		\tikzset{
+			leftNode/.style={circle,minimum width=.5ex, fill=none,draw},
+			rightNode/.style={circle,minimum width=.5ex, fill=black,thick,draw},
+			rightNodeInLine/.style={solid,circle,minimum width=.7ex, fill=black,thick,draw=white},
+			leftNodeInLine/.style={solid,circle,minimum width=.7ex, fill=none,thick,draw},
+		}
+		\draw[dashed line, yshift=.7cm]
+		(.2,.2) coordinate (sls) -- (2.5,2.5) coordinate (sle)
+		node[solid,circle,minimum width=2.8ex,fill=none,thick,draw] (name) at (2,2){}
+		node[leftNodeInLine] (name) at (2,2){}
+		node[solid,circle,minimum width=2.8ex,fill=none,thick,draw] (name) at (1.5,1.5){}
+		node[leftNodeInLine] (name) at (1.5,1.5){}
+		node [above right] {$w\cdot x + b > 1$};
+		
+		\draw[important line]
+		(.7,.7) coordinate (lines) -- (3,3) coordinate (linee)
+		node [above right] {$w\cdot x + b = 0$};
+		
+		\draw[dashed line, xshift=.7cm]
+		(.2,.2) coordinate (ils) -- (2.5,2.5) coordinate (ile)
+		node[solid,circle,minimum width=2.8ex,fill=none,thick,draw] (name) at (1.8,1.8){}
+		node[rightNodeInLine] (name) at (1.8,1.8){}
+		node [above right] {$w\cdot x + b < -1$};
+		
+		\draw[very thick,<->] ($(sls)+(.2,.2)$) -- ($(ils)+(.2,.2)$)
+		node[sloped,above, near end] {Margin};
+		
+		\foreach \Point in {(.9,2.4), (1.3,2.5), (1.3,2.1), (2,3), (1,2.9)}{
+			\draw \Point node[leftNode]{};
+		}
+		
+		\foreach \Point in {(2.9,1.4), (2.3,.5), (3.3,.1), (2,0.9), (2.5,1)}{
+			\draw \Point node[rightNode]{};
+		}
+	\end{tikzpicture}\\
+	\begin{tikzpicture}
+		\begin{axis}[
+			width = 0.75\textwidth,
+			height = 0.75\textwidth,
+			grid = both,
+			minor tick num = 1,
+			major grid style = {lightgray},
+			minor grid style = {lightgray!25},
+			xlabel = {$w$},
+			ylabel = {$b$},
+			zlabel = {$J(w,b)$},
+			legend cell align = {left},
+			legend pos = north west,
+			axis line style = {thick},
+			% colormap/viridis
+			]
+			
+			\addplot3 [
+			domain=-5:2,
+			domain y = -3:1,
+			samples = 20,
+			samples y = 30,
+			surf,
+			shader=faceted interp] {x^2 + y^2};
+			
+			% Add legend
+			\addlegendentry{Cost Function $J(w, b)$}
+			
+		\end{axis}
+	\end{tikzpicture}
+	
+\usetikzlibrary{arrows.meta,decorations.pathmorphing}
+
+\begin{figure}
+	\centering
+	\begin{tikzpicture}
+		% First graph
+		\node (graph1) at (0,0) {\input{densegraph.pgf}};
+		
+		% Squiggly arrow
+		\draw[-{Stealth[length=10pt]}, decorate, decoration={snake, amplitude=.4mm, segment length=2mm, post length=1mm}] 
+		(graph1.east) -- node[above] {Solvers} ++(3,0);
+		
+		% Second graph
+		\node (graph2) at (9,0) {\input{original_graph_solution.pgf}};
+	\end{tikzpicture}
+	\caption{2D-Euclidean TSP solution}
+\end{figure}
+\end{document}

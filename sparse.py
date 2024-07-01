@@ -1,11 +1,19 @@
 from utils import gen_random_conn_graph, plot_graph
 import random
 import math
+import matplotlib
 import matplotlib.pyplot as plt
 from solvis import vis_res
 import argparse
 from tspformat import format_to_tsplib, format_to_tsplib_edge_list
 from freqquad import getFreq
+matplotlib.use("pgf")
+matplotlib.rcParams.update({
+    "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+})
 
 parser = argparse.ArgumentParser(description="Script that takes a single integer argument N.")
 
@@ -54,16 +62,20 @@ two_thirds_length = int(len(sorted_data) * (2/3))
 top_two_thirds = sorted_data[:two_thirds_length]
 # print(top_two_thirds)
 
-plt.figure(figsize=(10, 10))
+plt.figure(figsize=(2.2, 2.2))
 for edge, value in top_two_thirds:
     (x1, y1), (x2, y2) = edge
-    plt.plot([x1, x2], [y1, y2], marker='o')
+    plt.plot([x1, x2], [y1, y2], color='blue')
+
+for nodes in random_graph.get_vertices():
+    x, y = nodes
+    plt.plot(x, y, marker='o', color='black')
 
 plt.xlabel('X-coordinate')
 plt.ylabel('Y-coordinate')
 plt.title('Graph of Edges')
 plt.grid(True)
-plt.savefig("images/sparsegraph")
+plt.savefig("images/sparsegraph.pgf")
 # plt.show()
 
 format_to_tsplib_edge_list(top_two_thirds)

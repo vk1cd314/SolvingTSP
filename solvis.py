@@ -1,12 +1,20 @@
 import lkh
+import matplotlib
 import matplotlib.pyplot as plt
 import math
+matplotlib.use("pgf")
+matplotlib.rcParams.update({
+    "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+})
 
 def load_tsp_file(filepath):
     with open(filepath, 'r') as file:
         return file.read()
 
-def solve_tsp(problem_str, solver_path='LKH', max_trials=10000, runs=20):
+def solve_tsp(problem_str, solver_path='LKH', max_trials=1000, runs=20):
     problem = lkh.LKHProblem.parse(problem_str)
     tour = lkh.solve(solver_path, problem=problem, max_trials=max_trials, runs=runs)
     return tour, problem.node_coords
@@ -26,7 +34,7 @@ def parse_tsp_solution(tour, nodes):
 
 def plot_tsp_solution(solution_coords, filename):
     x_coords, y_coords = zip(*solution_coords)
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(2.2, 2.2))
     plt.plot(x_coords, y_coords, 'bo-')
     plt.plot([x_coords[-1], x_coords[0]], [y_coords[-1], y_coords[0]], 'bo-')  # Complete the loop
     plt.xlabel('X-coordinate')
@@ -34,7 +42,7 @@ def plot_tsp_solution(solution_coords, filename):
     plt.title('TSP Solution')
     plt.grid(True)
     filename = filename.replace('graphs/', '')
-    plt.savefig("images/" + filename.split('.')[0] + "_solution")
+    plt.savefig("images/" + filename.split('.')[0] + "_solution.pgf")
     # plt.show()
 
 def vis_res(filename):
