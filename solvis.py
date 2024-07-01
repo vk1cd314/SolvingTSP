@@ -33,12 +33,15 @@ def plot_tsp_solution(solution_coords, filename):
     plt.ylabel('Y-coordinate')
     plt.title('TSP Solution')
     plt.grid(True)
-    plt.savefig(filename.split('.')[0])
+    filename = filename.replace('graphs/', '')
+    print(filename)
+    plt.savefig("images/" + filename.split('.')[0] + "_solution")
     # plt.show()
 
 def vis_res(filename):
     tsp_file = filename  # Path to your .tsp file
-    solver_path = 'LKH.exe'  # Ensure LKH is in your PATH or provide the full path to the LKH executable
+    print(f"Solving {tsp_file}")
+    solver_path = '/home/muhnay/Desktop/thesisstuff/SolvingTSP/LKH'  # Ensure LKH is in your PATH or provide the full path to the LKH executable
 
     problem_str = load_tsp_file(tsp_file)
     tour, nodes = solve_tsp(problem_str, solver_path)

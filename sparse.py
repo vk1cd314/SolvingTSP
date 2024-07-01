@@ -4,35 +4,14 @@ import math
 import matplotlib.pyplot as plt
 from solvis import vis_res
 import argparse
+from tspformat import format_to_tsplib, format_to_tsplib_edge_list
+from freqquad import getFreq
 
 parser = argparse.ArgumentParser(description="Script that takes a single integer argument N.")
 
 parser.add_argument("N", type=int, help="An integer argument N")
 
 args = parser.parse_args()
-
-def format_to_tsplib(data, filename='graph.tsp'):
-    nodes = set()
-    for edge in data:
-        nodes.update(edge)
-
-    nodes = sorted(nodes)
-
-    node_index = {node: i + 1 for i, node in enumerate(nodes)}
-
-    with open(filename, 'w') as f:
-        f.write('NAME: Graph\n')
-        f.write('TYPE: TSP\n')
-        f.write(f'DIMENSION: {len(nodes)}\n')
-        f.write('EDGE_WEIGHT_TYPE: EUC_2D\n')
-        f.write('NODE_COORD_SECTION\n')
-
-        for node, index in node_index.items():
-            f.write(f'{index} {node[0]} {node[1]}\n')
-
-        f.write('EOF\n')
-
-    print(f"TSPLIB file '{filename}' has been created.")
 
 random_graph = gen_random_conn_graph(args.N)
 plot_graph(random_graph, add_edges=True)
@@ -41,66 +20,6 @@ format_to_tsplib(random_graph.get_edges())
 
 N = args.N
 print(len(random_graph.get_edges()))
-def getFreq(a, b, c, d):
-    ab = math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2) + random.uniform(1e-7, 1e-3)
-    bc = math.sqrt((b[0] - c[0])**2 + (b[1] - c[1])**2) + random.uniform(1e-7, 1e-3)
-    cd = math.sqrt((c[0] - d[0])**2 + (c[1] - d[1])**2) + random.uniform(1e-7, 1e-3)
-    ad = math.sqrt((a[0] - d[0])**2 + (a[1] - d[1])**2) + random.uniform(1e-7, 1e-3)
-    ac = math.sqrt((a[0] - c[0])**2 + (a[1] - c[1])**2) + random.uniform(1e-7, 1e-3)
-    bd = math.sqrt((b[0] - d[0])**2 + (b[1] - d[1])**2) + random.uniform(1e-7, 1e-3)
-    
-    freq_dict = {}
-    
-    if ab + cd < ac + bd < ad + bc:
-        freq_dict[f'{a, b}'] = 5
-        freq_dict[f'{b, c}'] = 1
-        freq_dict[f'{c, d}'] = 5
-        freq_dict[f'{a, d}'] = 1
-        freq_dict[f'{a, c}'] = 3
-        freq_dict[f'{b, d}'] = 3
-        
-    elif ab + cd < ad + bc < ac + bd:
-        freq_dict[f'{a, b}'] = 5
-        freq_dict[f'{b, c}'] = 3
-        freq_dict[f'{c, d}'] = 5
-        freq_dict[f'{a, d}'] = 3
-        freq_dict[f'{a, c}'] = 1
-        freq_dict[f'{b, d}'] = 1
-        
-    elif ac + bd < ab + cd < ad + bc:
-        freq_dict[f'{a, b}'] = 3
-        freq_dict[f'{b, c}'] = 1
-        freq_dict[f'{c, d}'] = 3
-        freq_dict[f'{a, d}'] = 1
-        freq_dict[f'{a, c}'] = 5
-        freq_dict[f'{b, d}'] = 5
-        
-    elif ac + bd < ad + bc < ab + cd:
-        freq_dict[f'{a, b}'] = 1
-        freq_dict[f'{b, c}'] = 3
-        freq_dict[f'{c, d}'] = 1
-        freq_dict[f'{a, d}'] = 3
-        freq_dict[f'{a, c}'] = 5
-        freq_dict[f'{b, d}'] = 5
-        
-    elif ad + bc < ab + cd < ac + bd:
-        freq_dict[f'{a, b}'] = 3
-        freq_dict[f'{b, c}'] = 5
-        freq_dict[f'{c, d}'] = 3
-        freq_dict[f'{a, d}'] = 5
-        freq_dict[f'{a, c}'] = 1
-        freq_dict[f'{b, d}'] = 1
-        
-    elif ad + bc < ac + bd < ab + cd:
-        freq_dict[f'{a, b}'] = 1
-        freq_dict[f'{b, c}'] = 5
-        freq_dict[f'{c, d}'] = 1
-        freq_dict[f'{a, d}'] = 5
-        freq_dict[f'{a, c}'] = 3
-        freq_dict[f'{b, d}'] = 3
-        
-    return freq_dict
-
 
 edge_freq = {}   
 edge_freq_avg = {}
@@ -118,8 +37,6 @@ for edge in random_graph.get_edges():
     
     while len(freq_quads) < N and len(have_pts) >= 2:
         pt1, pt2 = random.sample(sorted(have_pts), 2)
-        # random_graph.remove_vertex(pt1)
-        # random_graph.remove_vertex(pt2)
         freq_dict = getFreq(u, v, pt1, pt2)
         if (u, v, min(pt1, pt2), max(pt1, pt2)) not in freq_quads:
             edge_freq[edge] += freq_dict[f'{u, v}']
@@ -146,57 +63,13 @@ plt.xlabel('X-coordinate')
 plt.ylabel('Y-coordinate')
 plt.title('Graph of Edges')
 plt.grid(True)
-plt.savefig("sparsegraph")
+plt.savefig("images/sparsegraph")
 # plt.show()
-
-def euclidean_distance(p1, p2):
-    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
-
-def format_to_tsplib_edge_list(data, filename='graph_sparse.tsp'):
-    nodes = set()
-    for edge, _ in data:
-        nodes.update(edge)
-
-    nodes = sorted(nodes)
-    node_index = {node: i + 1 for i, node in enumerate(nodes)}
-    matrix = {}
-    n = len(nodes)
-    INF = 1e7
-    for i in range(1, n + 1):
-        for j in range(1, n + 1):
-            matrix[(i, j)] = INF
-    # for i, node in enumerate(nodes):
-    #     matrix[(node_index[node[0]], node_index[node[1]])] = euclidean_distance(node[0], node[1])
-    
-    for edge, _ in data:
-        matrix[(node_index[edge[0]], node_index[edge[1]])] = euclidean_distance(edge[0], edge[1])
-        matrix[(node_index[edge[1]], node_index[edge[0]])] = euclidean_distance(edge[0], edge[1])
-        
-
-    with open(filename, 'w') as f:
-        f.write('NAME: Graph\n')
-        f.write('TYPE: TSP\n')
-        f.write(f'DIMENSION: {len(nodes)}\n')
-        f.write('EDGE_WEIGHT_TYPE: EXPLICIT\n')
-        f.write('NODE_COORD_TYPE: TWOD_COORDS\n')
-        f.write('EDGE_WEIGHT_FORMAT: FULL_MATRIX\n')
-        f.write('NODE_COORD_SECTION\n')
-        for node, index in node_index.items():
-            f.write(f'{index} {float(node[0])} {float(node[1])}\n')
-        f.write('EDGE_WEIGHT_SECTION\n')
-        for i in range(1, n + 1):
-            s = ''
-            for j in range(1, n + 1):
-                s += str(matrix[(i, j)]) + ' '
-            f.write(s + '\n')
-        f.write('EOF\n')
-
-    print(f"TSPLIB file '{filename}' has been created.")
 
 format_to_tsplib_edge_list(top_two_thirds)
 
-ans_correct = vis_res('graph.tsp')
-ans_sparse = vis_res('graph_sparse.tsp')
+ans_correct = vis_res('graphs/original_graph.tsp')
+ans_sparse = vis_res('graphs/sparsified_graph.tsp')
 print(ans_correct, ans_sparse)
 
 assert abs(ans_correct - ans_sparse) < 1e-7
