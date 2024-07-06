@@ -60,3 +60,35 @@ def getFreq(a, b, c, d):
         freq_dict[f'{b, d}'] = 3
         
     return freq_dict
+
+def do_one_iter(random_graph, N):
+    edge_freq = {}   
+    edge_freq_avg = {}
+
+    for edge in random_graph.get_edges():
+        u, v = edge
+        have_pts = set()
+        for vertex in random_graph.get_vertices():
+            if u != vertex and v != vertex:
+                have_pts.add(vertex)
+        
+        freq_quads = set()
+        edge_freq[edge] = 0
+        
+        while len(freq_quads) < N and len(have_pts) >= 2:
+            pt1, pt2 = random.sample(sorted(have_pts), 2)
+            freq_dict = getFreq(u, v, pt1, pt2)
+            if (u, v, min(pt1, pt2), max(pt1, pt2)) not in freq_quads:
+                edge_freq[edge] += freq_dict[f'{u, v}']
+            freq_quads.add((u, v, min(pt1, pt2), max(pt1, pt2)))
+        edge_freq_avg[edge] = edge_freq[edge] / N
+
+    sorted_freq = sorted(edge_freq_avg.items(), key=lambda item: item[1])
+    
+    sorted_data = sorted(sorted_freq, key=lambda x: x[1], reverse=True)
+
+    two_thirds_length = int(len(sorted_data) * (2/3))
+
+    top_two_thirds = sorted_data[:two_thirds_length]
+
+    return top_two_thirds

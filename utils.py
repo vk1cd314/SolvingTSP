@@ -55,9 +55,7 @@ def plot_graph(graph, add_edges=False):
         x, y = pos[vertex]
         plt.plot(x, y, marker='o', color='black')
 
-    plt.xlabel('X-coordinate')
-    plt.ylabel('Y-coordinate')
-    plt.title('Graph of Edges')
-    plt.grid(True)
+    plt.axis('off')
+    plt.title('Dense Graph')
     plt.savefig("images/densegraph.pgf")
-    
+

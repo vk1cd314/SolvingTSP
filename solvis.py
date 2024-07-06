@@ -14,7 +14,7 @@ def load_tsp_file(filepath):
     with open(filepath, 'r') as file:
         return file.read()
 
-def solve_tsp(problem_str, solver_path='LKH', max_trials=1000, runs=20):
+def solve_tsp(problem_str, solver_path='LKH', max_trials=100, runs=10):
     problem = lkh.LKHProblem.parse(problem_str)
     tour = lkh.solve(solver_path, problem=problem, max_trials=max_trials, runs=runs)
     return tour, problem.node_coords
@@ -22,14 +22,15 @@ def solve_tsp(problem_str, solver_path='LKH', max_trials=1000, runs=20):
 def euclidean_distance(p1, p2):
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
-def parse_tsp_solution(tour, nodes):
+def parse_tsp_solution(tour, nodes, node_c=None):
     node_coords = nodes
+    if len(nodes) == 0:
+        node_coords = node_c
     solution_coords = [node_coords[node] for node in tour]
     ans = 0
     n = len(solution_coords)
     for i in range(len(solution_coords)):
         ans += euclidean_distance(solution_coords[i], solution_coords[(i + 1) % n])
-    # print(ans)
     return solution_coords, ans
 
 def plot_tsp_solution(solution_coords, filename):
@@ -37,25 +38,20 @@ def plot_tsp_solution(solution_coords, filename):
     plt.figure(figsize=(2.2, 2.2))
     plt.plot(x_coords, y_coords, 'bo-')
     plt.plot([x_coords[-1], x_coords[0]], [y_coords[-1], y_coords[0]], 'bo-')  # Complete the loop
-    plt.xlabel('X-coordinate')
-    plt.ylabel('Y-coordinate')
     plt.title('TSP Solution')
-    plt.grid(True)
+    plt.axis('off')
     filename = filename.replace('graphs/', '')
     plt.savefig("images/" + filename.split('.')[0] + "_solution.pgf")
-    # plt.show()
 
-def vis_res(filename):
-    tsp_file = filename  # Path to your .tsp file
+def vis_res(filename, node_coords=None):
+    tsp_file = filename  
     print(f"Solving {tsp_file}")
-    solver_path = './LKH'  # Ensure LKH is in your PATH or provide the full path to the LKH executable
+    solver_path = './LKH' 
 
     problem_str = load_tsp_file(tsp_file)
     tour, nodes = solve_tsp(problem_str, solver_path)
     tour = tour[0]
-    # print(tour)
-    # print(nodes)
 
-    solution_coords, ans = parse_tsp_solution(tour, nodes)
-    plot_tsp_solution(solution_coords, filename)
+    solution_coords, ans = parse_tsp_solution(tour, nodes, node_coords)
+    # plot_tsp_solution(solution_coords, filename)
     return ans

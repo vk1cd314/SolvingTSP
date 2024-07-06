@@ -5,6 +5,7 @@
 %\usepackage{mathastext}
 %\MTfamily{\ttdefault}\Mathastext % reload, but use \ttdefault
 \usepackage{tikz}
+\usepackage{freetikz}
 \usepackage{tikz-qtree,tikz-qtree-compat}
 \usepackage{tikz,tikz-3dplot,tikz-cd,tkz-tab,tkz-euclide,pgf,pgfplots}
 \pgfplotsset{compat=newest}
@@ -202,19 +203,267 @@
 	
 \usetikzlibrary{arrows.meta,decorations.pathmorphing}
 
-\begin{figure}
+
+\begin{figure}[htb!]
 	\centering
-	\begin{tikzpicture}
-		% First graph
-		\node (graph1) at (0,0) {\input{densegraph.pgf}};
+	\begin{tikzpicture}[
+		node distance=1cm and 1.5cm,
+		arrow/.style={-Stealth, thick},
+		every edge quotes/.style={auto, text width=2cm, align=center}
+		]
+		\node (A) {\resizebox{0.25\textwidth}{!}{\input{new_densegraph.pgf}}};
+		\node (B) [below right=of A] {\resizebox{0.25\textwidth}{!}{\input{new_sparsegraph.pgf}}};
+		\node (C) [above right=of B] {\resizebox{0.25\textwidth}{!}{\input{new_densegraph_sol.pgf}}};
 		
-		% Squiggly arrow
-		\draw[-{Stealth[length=10pt]}, decorate, decoration={snake, amplitude=.4mm, segment length=2mm, post length=1mm}] 
-		(graph1.east) -- node[above] {Solvers} ++(3,0);
-		
-		% Second graph
-		\node (graph2) at (9,0) {\input{original_graph_solution.pgf}};
+		\draw[arrow] (A) to ["sparsified"] (B);
+		\draw[arrow] (A) to ["slower inference"] (C);
+		\draw[arrow] (B) to ["faster inference"] (C);
 	\end{tikzpicture}
-	\caption{2D-Euclidean TSP solution}
+	\caption{Sparsification speeding up inference}
 \end{figure}
+
+\usetikzlibrary{calc,shapes,backgrounds}
+
+\begin{tikzpicture}[scale=0.7]
+	% Define styles
+	\tikzstyle{vertex}=[circle,fill=black,minimum size=6pt,inner sep=0pt]
+	\tikzstyle{selected edge} = [draw,red,very thick]
+	\tikzstyle{edge} = [draw,thick,-]
+	\tikzstyle{subgraph}=[
+	draw,
+	ellipse,
+	dashed,
+	minimum width=3cm,
+	minimum height=2.5cm,
+	decoration={random steps, segment length=3pt, amplitude=1pt},
+	decorate
+	]
+	\tikzstyle{zoominsubgraph}=[draw,circle,dashed,minimum size=6cm]
+	
+	% Subgraph 1
+	\node[subgraph] (sg1) at (0,0) {$G_1$};
+	
+	% Subgraph 2
+	\node[subgraph] (sg2) at (8,0) {$G_2$};
+	
+	% Subgraph 3
+	\node[subgraph] (sg3) at (4,6) {$G_3$};
+	
+	% TSP tour connecting subgraphs
+	\draw[selected edge] (sg1) -- (sg2) -- (sg3) -- (sg1);
+	
+	% Zoom-in of Subgraph 1
+	\begin{scope}[shift={(16,6)},scale=2]
+		\node[zoominsubgraph,label=above:Zoom-in of $G_1$] (sg1_zoom) at (0,0) {};
+		\node[vertex] (vz1) at (0,0) {};
+		\node[vertex] (vz2) at (0.5,1) {};
+		\node[vertex] (vz3) at (-0.5,1) {};
+		\node[vertex] (vz4) at (0,-1) {};
+		\draw[edge] (vz1) -- (vz2) -- (vz3) -- (vz4) -- (vz1);
+		\draw[edge] (vz1) -- (vz3);
+		\draw[edge] (vz2) -- (vz4);
+		% TSP solution within zoomed subgraph
+		\draw[selected edge] (vz1) -- (vz2) -- (vz3) -- (vz4) -- cycle;
+	\end{scope}
+	
+	% Connection line between original and zoomed subgraph
+	\draw[dashed] (sg1.east) -- ($(sg1.east)!0.5!(sg1_zoom.west)$);
+	\draw[dashed] (sg1_zoom.west) -- ($(sg1.east)!0.5!(sg1_zoom.west)$);
+	
+\end{tikzpicture}
+\usetikzlibrary{calc,intersections,arrows.meta}
+\usepgfplotslibrary{fillbetween}
+\begin{tikzpicture}[long dash/.style={dash pattern=on 10pt off 2pt}]
+	\draw[ultra thick,long dash,name path=left] plot[smooth cycle] coordinates 
+	{(0.3,-2) (-1,-3) (-8,-1.2) (-8.8,-0.2) (-7,0.6) (-1,-0.6)};
+
+\end{tikzpicture}
+
+\begin{tikzpicture}[thick]
+	\draw[-latex] (0,0) -- (5,0) node[right]{$s$};
+	\draw[-latex] (0,0) -- (0,7) node[left]{$y$};
+	\draw (4,0) -- (4,5.5);
+	\foreach \X in {1,2,4.5}
+	{\draw (0,\X) -- (4,\X);}
+	\foreach \X/\Y [count=\Z]in {0/0,3.5/t,5.5/1}
+	{
+		\ifnum\Z=1
+		\draw[very thick,fill] (0,\X) circle(1pt) node[left]{$(0,\Y)$} -- (4,\X) 
+		coordinate[midway,below] (l1) circle(1pt)
+		node[below right]{$(1,\Y)$};
+		\else
+		\draw[very thick,fill] (0,\X) circle(1pt) node[left]{$(0,\Y)$} -- (4,\X) 
+		\ifnum\Z=2
+		coordinate[midway,below] (l3)
+		\fi
+		\ifnum\Z=3
+		coordinate[midway,above] (l2)
+		\fi
+		circle(1pt)
+		node[right]{$(1,\Y)$};
+		\fi
+	}
+	\draw[fill,very thick] (1.5,3.5) circle (1pt) node[below] {$(s,t)$};
+	\begin{scope}[xshift=6.5cm]
+		
+		\draw[very thick] plot[smooth cycle] coordinates
+		{(0,2) (0,5) (1.3,7) (5,7.9) (8.2,6) (8.3,3) (6,1.4) (2,1.2)};
+		\node[circle,fill,scale=0.6] (L) at (0.5,4){};
+		\node[circle,fill,scale=0.6] (R) at (7.5,4.2){};
+		\foreach \X in {-45,-20,-5,45,60}
+		{\pgfmathsetmacro{\Y}{180-\X+4*rnd}
+			\draw (L) to[out=\X,in=\Y,looseness=1.2]  (R);
+			\ifnum\X=-45
+			\path  (L) to[out=\X,in=\Y,looseness=1.2] coordinate[pos=0.5,below] (r1)
+			node[pos=0.6,below]{$\sigma$} (R);
+			\fi
+			\ifnum\X=60
+			\path  (L) to[out=\X,in=\Y,looseness=1.2] coordinate[pos=0.4,above] (r2)
+			node[pos=0.6,above]{$\tau$} (R);
+			\fi
+		}
+		\draw[very thick] (L) to[out=20,in=163,looseness=1.2] 
+		node[pos=0.2,circle,fill,scale=0.6,label=above right:$h_t(s)$]{} 
+		coordinate[pos=0.35] (r3) (R);
+	\end{scope}
+	\draw[-latex,shorten >=2pt] (l1) to[out=14,in=220] (r1);
+	\draw[-latex,shorten >=2pt] (l2) to[out=24,in=140] (r2);
+	\draw[-latex,shorten >=2pt] (l3) to[out=-12,in=210] (r3);
+\end{tikzpicture}
+
+\begin{figure}[htb!]
+	\centering
+	\begin{tikzpicture}[scale=1, long dash/.style={dash pattern=on 10pt off 2pt}]
+		% Define styles
+		\tikzstyle{vertex}=[circle,fill=black,minimum size=6pt,inner sep=0pt]
+		\tikzstyle{selected edge} = [draw,red,very thick]
+		\tikzstyle{edge} = [draw,thick,-]
+		
+		% Subgraph 1
+		\begin{scope}[shift={(0,0)}]
+			\draw[ultra thick,long dash,dashed] plot[smooth cycle] coordinates 
+			{(1,-1) (-0.5,-2) (-2,-1) (-3,0) (-2,1) (1, 1)};
+			\node at (0,0) {SG1};
+		\end{scope}
+		
+		% Subgraph 2
+		\begin{scope}[shift={(8,0)}]
+			\draw[ultra thick,long dash,dashed] plot[smooth cycle] coordinates 
+			{(1,-1) (-0.5,-2) (-2,-1) (-1,0) (0,1) (1, 1)};
+			\node at (0,0) {SG2};
+		\end{scope}
+		
+		% Subgraph 3
+		\begin{scope}[shift={(4,6)}]
+			\draw[ultra thick,long dash,dashed] plot[smooth cycle] coordinates 
+			{(1,-1) (-0.5,-2) (-2,-1) (-2,0) (0,2) (1, 1)};
+			\node at (0,0) {SG3};
+		\end{scope}
+		
+		% TSP tour connecting subgraphs
+		%\draw[selected edge] (1,0) -- (7,0) -- (4,6) -- cycle;
+		\draw[selected edge] (1.2, 0) -- (7, 0);
+		\draw[selected edge] (1, 1) -- (2.8, 4.3);
+		\draw[selected edge] (7.8, 0.9) -- (4.3, 4.3);
+		
+		% Zoom-in of Subgraph 1
+		\begin{scope}[shift={(12,4)},scale=1.5]
+			\draw[ultra thick,long dash,dashed] plot[smooth cycle] coordinates 
+			{(1.2,-0.5) (-0.5,-1.8) (-2,-0.5) (-3,0.5) (-2,1.5) (1, 1.5)};
+			\node[above] at (-0.4,1.7) {Zoom-in of SG1};
+			\node[vertex, label={[label distance=1pt]45:$v_1$}] (vz1) at (0,0) {};
+			\node[vertex, label={[label distance=1pt]45:$v_2$}] (vz2) at (0.5,1) {};
+			\node[vertex, label={[label distance=1pt]135:$v_3$}] (vz3) at (-0.5,1) {};
+			\node[vertex, label={[label distance=1pt]270:$v_4$}] (vz4) at (0,-1) {};
+			\draw[edge] (vz1) -- (vz2) -- (vz3) -- (vz4) -- (vz1);
+			\draw[edge] (vz1) -- (vz3);
+			
+			% TSP solution within zoomed subgraph
+			\draw[selected edge] (vz2) -- (vz3) -- (vz4) -- (vz1) -- cycle;
+		\end{scope}
+		
+		% Connection line between original and zoomed subgraph
+		\draw[dashed] (1.2, 0) -- ($(2,0)!1!(9,3)$);
+		
+	\end{tikzpicture}
+	\caption{Partioned Graph Solution}
+\end{figure}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, trees}
+
+\begin{tikzpicture}[
+	level distance=2.5cm,
+	sibling distance=8cm,
+	edge from parent/.style = {draw, -Stealth, thick},
+	every node/.style = {draw, rounded corners, minimum width=20mm, minimum height=10mm, align=center, font=\small},
+	level 1/.style = {sibling distance=10cm},
+	level 2/.style = {sibling distance=3cm}
+	]
+	
+	% Root
+	\node[fill=yellow!30] {TSP-Solvers}
+	% Level 1
+	child {
+		node[fill=blue!20] {Neural}
+		% Level 2
+		child { node[fill=blue!10] {L2S} }
+		child { node[fill=blue!10] {L2P} }
+		child { node[fill=blue!10] {L2C} }
+	}
+	child {
+		node[fill=red!20] {Heuristic/Approx}
+		% Level 2
+		child { node[fill=red!10] {Christophedes Algo} }
+		child { node[fill=red!10] {LKH} }
+		child { node[fill=red!10] {OR\\Tools} }
+	};
+	
+	% Exact branch
+	\node[fill=green!20] (exact) at (0, -6.5cm) {Exact};
+	\draw[-Stealth, thick] (0, -0.5cm) -- (exact);
+	
+	% Exact subnodes
+	\node[fill=green!10] (ilp) at (-3, -9cm) {ILP};
+	\node[fill=green!10] (dp) at (0, -9cm) {DP};
+	\node[fill=green!10] (exhaustive) at (3, -9cm) {Exhaustive};
+	
+	% Connect Exact to its subnodes
+	\foreach \i in {ilp,dp,exhaustive}
+	\draw[-Stealth, thick] (exact) -- (\i);
+	
+\end{tikzpicture}
+
+\begin{tikzpicture}
+	\node[dot] (d0) at (4.5, 8) {};
+	\node[dot] (d1) at (2.5, 5) {};
+	\node[dot] (d2) at (6, 5) {};
+	\node[dot] (d3) at (3.5, 1.5) {};
+	\node[dot] (d4) at (4, 1.5) {};
+	\draw (d1.center) to[out=0, in=180] (d2.center);
+	\draw (d1.center) to[out=45, in=-90] (3, 5.5) to[out=45, in=-90] (3, 6) to[out=45, in=-90] (4, 7) to[out=45, in=180] (4, 7) to[out=45, in=-135] (d0.center);
+	\draw (5, 7.5) to[out=0, in=90] (6, 5.5) to[out=-45, in=90] (6, 5.5) to[out=-90, in=90] (6, 5.5) to[out=-45, in=90] (d2.center);
+	\draw (2.5, 4.5) to[out=-90, in=180] (2.5, 2.5) to[out=0, in=-135] (d3.center);
+	\draw (3, 4.5) to[out=0, in=90] (3.5, 3) to[out=-45, in=-45] (d3.center);
+	\draw (d3.center) to[out=-135, in=90] (2.5, 1.5) to[out=-90, in=180] (2.5, 1.5) to[out=0, in=-90] (3, 1.5) to[out=90, in=0] (2.5, 1.5) to[out=180, in=135] (d3.center);
+	\draw (d3.center) to[out=90, in=180] (d3.center);
+	\draw (d3.center) to[out=-135, in=90] (3, 2) to[out=-135, in=90] (3, 2) to[out=-90, in=180] (3, 1.5) to[out=0, in=-90] (3, 2) to[out=90, in=0] (d3.center);
+	\draw (d3.center) to[out=-45, in=180] (3, 2) to[out=0, in=0] (d3.center);
+	\draw (d3.center) to[out=-90, in=90] (d3.center);
+	\draw (d3.center) to[out=-90, in=180] (3.5, 1) to[out=0, in=-90] (4, 1) to[out=90, in=-90] (3.5, 1) to[out=135, in=-90] (3.5, 1) to[out=135, in=0] (d3.center);
+	\draw (d3.center) to[out=45, in=180] (3, 1.5) to[out=0, in=135] (d3.center);
+	\draw (d3.center) to[out=0, in=-45] (d3.center);
+	\draw (d3.center) to[out=45, in=180] (3, 1.5) to[out=0, in=-135] (d3.center);
+	\draw (d3.center) to[out=-45, in=180] (d3.center);
+	\draw (d3.center) to[out=-90, in=90] (4, 1) to[out=-90, in=180] (4, 1) to[out=0, in=-90] (4.5, 1) to[out=90, in=-45] (d3.center);
+	\draw (d3.center) to[out=0, in=180] (d3.center);
+	\draw (d3.center) to[out=90, in=-90] (d3.center);
+	\draw (d3.center) to[out=-135, in=90] (3, 2.5) to[out=-90, in=180] (3, 2.5) to[out=0, in=-90] (3, 2.5) to[out=90, in=0] (3, 2.5) to[out=180, in=45] (d3.center);
+	\draw (d3.center) to[out=180, in=90] (d3.center);
+	\draw (d3.center) to[out=-90, in=90] (2.5, 1.5) to[out=-135, in=90] (2.5, 1.5) to[out=-90, in=180] (2.5, 1.5) to[out=0, in=-90] (2.5, 1.5) to[out=90, in=0] (d3.center);
+	\draw (d3.center) to[out=-90, in=135] (d3.center);
+	\draw (d3.center) to[out=-135, in=90] (2.5, 1) to[out=-90, in=180] (3, 0.5) to[out=0, in=-90] (3, 0.5) to[out=90, in=0] (3, 1) to[out=180, in=90] (d3.center);
+	\draw (d3.center) to[out=180, in=0] (d3.center);
+	\draw (d3.center) to[out=0, in=180] (d3.center);
+	\draw (d3.center) to[out=-135, in=90] (2.5, 1.5) to[out=-90, in=90] (2.5, 1) to[out=-45, in=90] (2.5, 1) to[out=-45, in=-90] (d3.center);
+	\draw (d3.center) to[out=0, in=90] (4, 1.5) to[out=-90, in=90] (4, 1.5) to[out=-45, in=90] (4, 1.5) to[out=-45, in=90] (4, 1) to[out=-45, in=90] (4, 1) to[out=-90, in=90] (4, 1) to[out=-90, in=90] (4.5, 1) to[out=-90, in=135] (d3.center);
+\end{tikzpicture}
 \end{document}
