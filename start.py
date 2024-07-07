@@ -20,6 +20,8 @@ from gurobipy import GRB
 from graph import Graph
 from freqquad import do_one_iter
 from copy import deepcopy
+from dotenv import load_dotenv
+import os
 
 def shortest_subtour(edges):
     """Given a list of edges, return the shortest subtour (as a list of nodes)
@@ -97,7 +99,13 @@ def solve_tsp(nodes, distances):
     and subtours eliminated using lazy constraints.
     """
 
-    with gp.Env() as env, gp.Model(env=env) as m:
+    options = {
+        "WLSACCESSID": str(os.getenv("WLSACCESSID")),
+        "WLSSECRET": str(os.getenv("WLSSECRET")),
+        "LICENSEID": int(os.getenv("LICENSEID"))
+    }
+
+    with gp.Env(params=options) as env, gp.Model(env=env) as m:
         # Create variables, and add symmetric keys to the resulting dictionary
         # 'x', such that (i, j) and (j, i) refer to the same variable.
         x = m.addVars(distances.keys(), obj=distances, vtype=GRB.BINARY, name="e")
@@ -122,6 +130,7 @@ def solve_tsp(nodes, distances):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     if len(sys.argv) < 2:
         print("Usage: tsp.py npoints <seed>")
         sys.exit(0)
@@ -169,7 +178,7 @@ if __name__ == "__main__":
     print(f"Optimal cost: {cost:g}")
     print("")
     
-    tour, cost = solve_tsp(nnodes, ndict)
-    print(f"Optimal tour: {tour}")
-    print(f"Optimal cost: {cost:g}")
-    print("")
+    # tour, cost = solve_tsp(nnodes, ndict)
+    # print(f"Optimal tour: {tour}")
+    # print(f"Optimal cost: {cost:g}")
+    # print("")
