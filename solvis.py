@@ -16,7 +16,7 @@ def load_tsp_file(filepath):
 
 def solve_tsp(problem_str, solver_path='LKH', max_trials=100, runs=10):
     problem = lkh.LKHProblem.parse(problem_str)
-    tour = lkh.solve(solver_path, problem=problem, max_trials=max_trials, runs=runs)
+    tour = lkh.solve(solver_path, problem=problem, max_trials=max_trials, runs=runs, time_limit=1)
     return tour, problem.node_coords
 
 def euclidean_distance(p1, p2):
@@ -45,7 +45,7 @@ def plot_tsp_solution(solution_coords, filename):
 
 def vis_res(filename, node_coords=None):
     tsp_file = filename  
-    print(f"Solving {tsp_file}")
+    # print(f"Solving {tsp_file}")
     solver_path = './LKH' 
 
     problem_str = load_tsp_file(tsp_file)
@@ -53,5 +53,5 @@ def vis_res(filename, node_coords=None):
     tour = tour[0]
 
     solution_coords, ans = parse_tsp_solution(tour, nodes, node_coords)
-    # plot_tsp_solution(solution_coords, filename)
+    plot_tsp_solution(solution_coords, filename)
     return ans

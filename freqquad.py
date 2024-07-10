@@ -74,13 +74,20 @@ def do_one_iter(random_graph, N):
         
         freq_quads = set()
         edge_freq[edge] = 0
+
+        have_pts = list(have_pts)
+        f_quads = []
+        for i in range(N):
+            f_quads.append(random.sample(have_pts, 2))
         
-        while len(freq_quads) < N and len(have_pts) >= 2:
-            pt1, pt2 = random.sample(sorted(have_pts), 2)
+        i = 0
+        while i < len(f_quads):
+            pt1, pt2 = f_quads[i]
             freq_dict = getFreq(u, v, pt1, pt2)
             if (u, v, min(pt1, pt2), max(pt1, pt2)) not in freq_quads:
                 edge_freq[edge] += freq_dict[f'{u, v}']
             freq_quads.add((u, v, min(pt1, pt2), max(pt1, pt2)))
+            i += 1
         edge_freq_avg[edge] = edge_freq[edge] / N
 
     sorted_freq = sorted(edge_freq_avg.items(), key=lambda item: item[1])
