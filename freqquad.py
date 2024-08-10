@@ -65,6 +65,7 @@ def do_one_iter(random_graph, N):
     edge_freq = {}   
     edge_freq_avg = {}
 
+    print(len(random_graph.get_edges()))
     for edge in random_graph.get_edges():
         u, v = edge
         have_pts = set()
@@ -94,7 +95,7 @@ def do_one_iter(random_graph, N):
     
     sorted_data = sorted(sorted_freq, key=lambda x: x[1], reverse=True)
 
-    two_thirds_length = int(len(sorted_data) * (2/3))
+    two_thirds_length = int((2 * len(sorted_data) + 2) // 3)
 
     top_two_thirds = sorted_data[:two_thirds_length]
 
