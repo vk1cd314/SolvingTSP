@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
     int u = get<0>(sorted_edges[i]);
     int v = get<1>(sorted_edges[i]);
     double w = edge_map[{u, v}];
-    cerr << "what? " << w << '\n';
+    // cerr << "what? " << w << '\n';
     to_write.push_back({min(u, v), max(u, v), w});
     // cout << u << " " << v << " " << w << endl;
   }
@@ -131,5 +131,6 @@ int main(int argc, char **argv) {
     cout << get<0>(to_write[i]) << " " << get<1>(to_write[i]) << " "
          << get<2>(to_write[i]) << endl;
   }
+  cerr << "Final size: " << to_write.size() << '\n';
   return 0;
 }

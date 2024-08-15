@@ -11,3 +11,4 @@ def solve_tsp(problem_str, solver_path='./LKH', max_trials=100, runs=10):
 
 print(solve_tsp(load_tsp_file("graphs/original_graph.tsp")))
 print(solve_tsp(load_tsp_file("graphs/sparsified_graph.tsp")))
+

@@ -18,7 +18,8 @@ matplotlib.rcParams.update({
     'pgf.rcfonts': False,
 })
 
-parser = argparse.ArgumentParser(description="Script that takes a single integer argument N.")
+parser = argparse.ArgumentParser(
+    description="Script that takes a single integer argument N.")
 
 parser.add_argument("N", type=int, help="An integer argument N")
 parser.add_argument("seed", type=int, help="An integer argument seed")
@@ -26,6 +27,8 @@ parser.add_argument("seed", type=int, help="An integer argument seed")
 args = parser.parse_args()
 
 random_graph = gen_random_conn_graph(args.N, seed=args.seed)
+
+
 def write_graph_to_file(graph):
     with open('graph.txt', 'w') as file:
         vertices = graph.get_vertices()
@@ -34,7 +37,9 @@ def write_graph_to_file(graph):
         for edge in edges:
             start_node_index = vertices.index(edge[0])
             end_node_index = vertices.index(edge[1])
-            file.write(f"{start_node_index} {end_node_index} {euclidean_distance(edge[0], edge[1])}\n")
+            file.write(f"{start_node_index} {end_node_index} {
+                       int(euclidean_distance(edge[0], edge[1]))}\n")
+
 
 write_graph_to_file(random_graph)
 
@@ -78,11 +83,12 @@ with open('top_two_thirds_graph.txt', 'w') as file:
         start_node_index = vertices.index(edge[0])
         end_node_index = vertices.index(edge[1])
         distance = euclidean_distance(edge[0], edge[1])
-        to_write.append((min(start_node_index, end_node_index), max(start_node_index, end_node_index), distance))
+        to_write.append((min(start_node_index, end_node_index),
+                         max(start_node_index, end_node_index), distance))
         # file.write(f"{start_node_index} {end_node_index} {round(round(distance, 2) * 100)}\n")
     to_write = sorted(to_write)
     for u, v, w in to_write:
-        file.write(f"{u} {v} {w}\n")
+        file.write(f"{u} {v} {int(w)}\n")
 
 # Write the top two-thirds graph to a file
 # def write_top_two_thirds_graph_to_file(graph):
