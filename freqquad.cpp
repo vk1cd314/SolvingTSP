@@ -15,7 +15,6 @@ map<pair<int, int>, int> get_freq(int a, int b, int c, int d,
   int ac = edgeList[{a, c}] + rand() % N / (1.0 * N);
   int bd = edgeList[{b, d}] + rand() % N / (1.0 * N);
 
-  // Fill the frequency dictionary based on the conditions
   if (ab + cd < ac + bd && ac + bd < ad + bc) {
     freq_dict[{a, b}] = 5;
     freq_dict[{b, c}] = 1;
@@ -75,7 +74,6 @@ int main(int argc, char **argv) {
 
   map<pair<int, int>, int> edge_map;
   while (file >> v1 >> v2 >> length) {
-    // if (v1 > v2) swap(v1, v2);
     edge_map[{v1, v2}] = length;
     edge_map[{v2, v1}] = length;
   }
@@ -102,9 +100,6 @@ int main(int argc, char **argv) {
     }
     for (int i = 0; i < vertices; i++) {
       auto [u1, v1] = freq_quads[i];
-      // if (checked[{u, v, min(u1, v1), max(u1, v1)}] == 1)
-      //   continue;
-      // checked[{u, v, min(u1, v1), max(u1, v1)}] = 1;
       auto freq_dict = get_freq(u, v, u1, v1, edge_map);
       edge_freq_e += freq_dict[{u, v}];
     }
@@ -126,14 +121,7 @@ int main(int argc, char **argv) {
     int u = get<0>(sorted_edges[i]);
     int v = get<1>(sorted_edges[i]);
     int w = edge_map[{u, v}];
-    // cerr << "what? " << w << '\n';
     cout << u << " " << v << " " << w << '\n';
   }
-  // sort(to_write.begin(), to_write.end());
-  // // cout << fixed << setprecision(10);
-  // for (int i = 0; i < to_write.size(); i++) {
-  //   cout << get<0>(to_write[i]) << " " << get<1>(to_write[i]) << " "
-  //        << get<2>(to_write[i]) << endl;
-  // }
   return 0;
 }
