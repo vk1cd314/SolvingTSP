@@ -4,62 +4,68 @@
 using namespace std;
 const int N = 1e7;
 
-map<pair<int, int>, int> get_freq(int a, int b, int c, int d,
+int get_freq(int a, int b, int c, int d,
                                      map<pair<int, int>, int> &edgeList) {
-  map<pair<int, int>, int> freq_dict;
+  // map<pair<int, int>, int> freq_dict;
 
-  int ab = edgeList[{a, b}] + rand() % N / (1.0 * N);
-  int bc = edgeList[{b, c}] + rand() % N / (1.0 * N);
-  int cd = edgeList[{c, d}] + rand() % N / (1.0 * N);
-  int ad = edgeList[{a, d}] + rand() % N / (1.0 * N);
-  int ac = edgeList[{a, c}] + rand() % N / (1.0 * N);
-  int bd = edgeList[{b, d}] + rand() % N / (1.0 * N);
+  double ab = edgeList[{a, b}] + rand() % N / (1.0 * N);
+  double bc = edgeList[{b, c}] + rand() % N / (1.0 * N);
+  double cd = edgeList[{c, d}] + rand() % N / (1.0 * N);
+  double ad = edgeList[{a, d}] + rand() % N / (1.0 * N);
+  double ac = edgeList[{a, c}] + rand() % N / (1.0 * N);
+  double bd = edgeList[{b, d}] + rand() % N / (1.0 * N);
 
   if (ab + cd < ac + bd && ac + bd < ad + bc) {
-    freq_dict[{a, b}] = 5;
-    freq_dict[{b, c}] = 1;
-    freq_dict[{c, d}] = 5;
-    freq_dict[{a, d}] = 1;
-    freq_dict[{a, c}] = 3;
-    freq_dict[{b, d}] = 3;
+    return 5;
+    // freq_dict[{a, b}] = 5;
+    // freq_dict[{b, c}] = 1;
+    // freq_dict[{c, d}] = 5;
+    // freq_dict[{a, d}] = 1;
+    // freq_dict[{a, c}] = 3;
+    // freq_dict[{b, d}] = 3;
   } else if (ab + cd < ad + bc && ad + bc < ac + bd) {
-    freq_dict[{a, b}] = 5;
-    freq_dict[{b, c}] = 3;
-    freq_dict[{c, d}] = 5;
-    freq_dict[{a, d}] = 3;
-    freq_dict[{a, c}] = 1;
-    freq_dict[{b, d}] = 1;
+    return 5;
+    // freq_dict[{a, b}] = 5;
+    // freq_dict[{b, c}] = 3;
+    // freq_dict[{c, d}] = 5;
+    // freq_dict[{a, d}] = 3;
+    // freq_dict[{a, c}] = 1;
+    // freq_dict[{b, d}] = 1;
   } else if (ac + bd < ab + cd && ab + cd < ad + bc) {
-    freq_dict[{a, b}] = 3;
-    freq_dict[{b, c}] = 1;
-    freq_dict[{c, d}] = 3;
-    freq_dict[{a, d}] = 1;
-    freq_dict[{a, c}] = 5;
-    freq_dict[{b, d}] = 5;
+    return 3;
+    // freq_dict[{a, b}] = 3;
+    // freq_dict[{b, c}] = 1;
+    // freq_dict[{c, d}] = 3;
+    // freq_dict[{a, d}] = 1;
+    // freq_dict[{a, c}] = 5;
+    // freq_dict[{b, d}] = 5;
   } else if (ac + bd < ad + bc && ad + bc < ab + cd) {
-    freq_dict[{a, b}] = 1;
-    freq_dict[{b, c}] = 3;
-    freq_dict[{c, d}] = 1;
-    freq_dict[{a, d}] = 3;
-    freq_dict[{a, c}] = 5;
-    freq_dict[{b, d}] = 5;
+    return 1;
+    // freq_dict[{a, b}] = 1;
+    // freq_dict[{b, c}] = 3;
+    // freq_dict[{c, d}] = 1;
+    // freq_dict[{a, d}] = 3;
+    // freq_dict[{a, c}] = 5;
+    // freq_dict[{b, d}] = 5;
   } else if (ad + bc < ab + cd && ab + cd < ac + bd) {
-    freq_dict[{a, b}] = 3;
-    freq_dict[{b, c}] = 5;
-    freq_dict[{c, d}] = 3;
-    freq_dict[{a, d}] = 5;
-    freq_dict[{a, c}] = 1;
-    freq_dict[{b, d}] = 1;
+    return 3;
+    // freq_dict[{a, b}] = 3;
+    // freq_dict[{b, c}] = 5;
+    // freq_dict[{c, d}] = 3;
+    // freq_dict[{a, d}] = 5;
+    // freq_dict[{a, c}] = 1;
+    // freq_dict[{b, d}] = 1;
   } else if (ad + bc < ac + bd && ac + bd < ab + cd) {
-    freq_dict[{a, b}] = 1;
-    freq_dict[{b, c}] = 5;
-    freq_dict[{c, d}] = 1;
-    freq_dict[{a, d}] = 5;
-    freq_dict[{a, c}] = 3;
-    freq_dict[{b, d}] = 3;
+    return 1;
+    // freq_dict[{a, b}] = 1;
+    // freq_dict[{b, c}] = 5;
+    // freq_dict[{c, d}] = 1;
+    // freq_dict[{a, d}] = 5;
+    // freq_dict[{a, c}] = 3;
+    // freq_dict[{b, d}] = 3;
   }
 
-  return freq_dict;
+  return 0;
 }
 
 int main(int argc, char **argv) {
@@ -100,8 +106,9 @@ int main(int argc, char **argv) {
     }
     for (int i = 0; i < vertices; i++) {
       auto [u1, v1] = freq_quads[i];
-      auto freq_dict = get_freq(u, v, u1, v1, edge_map);
-      edge_freq_e += freq_dict[{u, v}];
+      // auto freq_dict = get_freq(u, v, u1, v1, edge_map);
+      // edge_freq_e += freq_dict[{u, v}];
+      edge_freq_e += get_freq(u, v, u1, v1, edge_map);
     }
     edge_freq[{u, v}] = 1.0 * edge_freq_e / vertices;
   }
