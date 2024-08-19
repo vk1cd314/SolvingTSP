@@ -115,6 +115,7 @@ int main(int argc, char **argv) {
     int u = edge_list[i][0]; 
     int v = edge_list[i][1];
     int w = edge_map[u][v];
-    cout << u << " " << v << ' ' << w << '\n';
+    cout << u << " " << v << '\n';
   }
 }
+
