@@ -14,9 +14,9 @@ int get_freq(int a, int b, int c, int d) {
   double ad = edge_map[a][d];
   double ac = edge_map[a][c];
   double bd = edge_map[b][d];
-  
+
   if (ab == N or bc == N or cd == N or ad == N) return -1;
-  
+
   ab += rand() % N / (1.0 * N); 
   bc += rand() % N / (1.0 * N);
   cd += rand() % N / (1.0 * N);
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
   file.close();
 
   auto start = chrono::high_resolution_clock::now();
- 
+
   for (int turn = 0; turn < t_count; ++turn) {  
     auto start_turn = chrono::high_resolution_clock::now();
     bool ends = false;
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
         edge_freq_e += freq;
       }
     }
-    
+
     if (ends) {
       cerr << "broke at turn " << turn + 1 << '\n';
       break;
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
   auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
   cerr << "Time taken total: " << duration.count() / 1000000.0 << " seconds" << '\n';
   cout << vertices << " " << edge_list.size() << '\n';
- 
+
   for (int i = 0; i < (int) edge_list.size(); i++) {
     int u = edge_list[i][0]; 
     int v = edge_list[i][1];
