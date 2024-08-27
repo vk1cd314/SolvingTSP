@@ -1,5 +1,4 @@
 #include <bits/stdc++.h>
-#include <cstdlib>
 
 using namespace std;
 
@@ -15,7 +14,7 @@ int get_freq(int a, int b, int c, int d) {
   double ac = edge_map[a][c];
   double bd = edge_map[b][d];
 
-  if (ab == N or bc == N or cd == N or ad == N) return -1;
+  if (ab == N or bc == N or cd == N or ad == N) return 0;
 
   ab += rand() % N / (1.0 * N); 
   bc += rand() % N / (1.0 * N);
@@ -35,20 +34,20 @@ int get_freq(int a, int b, int c, int d) {
 }
 
 int main(int argc, char **argv) {
-  ifstream file;
   char *filename = argv[1];
   int t_count = atoi(argv[2]);
   int seed = atoi(argv[3]);
+
   srand(seed);
-  file.open(filename);
+
   int vertices, edges;
+  vector <array <int, 3>> edge_list;
+
+  ifstream file;
+  file.open(filename);
   file >> vertices >> edges;
   int v1, v2;
   int length;
-
-  const int QUAD_NO = min(vertices, 120);
-
-  vector <array <int, 3>> edge_list;
   while (file >> v1 >> v2 >> length) {
     if (v1 > v2) swap(v1, v2);
     edge_map[v1][v2] = length;
@@ -56,23 +55,20 @@ int main(int argc, char **argv) {
     edge_list.push_back({v1, v2, 0});
   }
   file.close();
+  
+  const int QUAD_NO = min(vertices, 120);
 
   auto start = chrono::high_resolution_clock::now();
 
   for (int turn = 0; turn < t_count; ++turn) {  
     auto start_turn = chrono::high_resolution_clock::now();
     bool ends = false;
+
     for (int i = 0; i < (int) edge_list.size(); ++i) {
       auto &[u, v, edge_freq_e] = edge_list[i];
+      int count_quad_avail = 0;
 
-      for (int j = 0; j < QUAD_NO; ++j) {
-        int cnt = 0;
-      st:
-        cnt += 1;
-        if (cnt > MX_REP) {
-          ends = true;
-          break;
-        }
+      while (count_quad_avail < QUAD_NO) {
         int u1 = rand() % vertices;
         while (u1 == u || u1 == v)
           u1 = rand() % vertices;
@@ -80,8 +76,14 @@ int main(int argc, char **argv) {
         while (v1 == u || v1 == v || u1 == v1)
           v1 = rand() % vertices;
         int freq = get_freq(u, v, u1, v1);
-        if (freq == -1) goto st;
+        if (freq) count_quad_avail += 1;
         edge_freq_e += freq;
+      }
+
+      if (count_quad_avail) edge_freq_e /= count_quad_avail;
+      else {
+        ends = true;
+        break;
       }
     }
 
@@ -92,7 +94,7 @@ int main(int argc, char **argv) {
 
     vector <array<int, 3>> new_edge_list;
     for (int i = 0; i < (int) edge_list.size(); ++i) {
-      if (edge_list[i][2] >= 3 * QUAD_NO) {
+      if (edge_list[i][2] >= 3) {
         new_edge_list.push_back({edge_list[i][0], edge_list[i][1], 0});
       } else {
         edge_map[edge_list[i][0]][edge_list[i][1]] = N;
