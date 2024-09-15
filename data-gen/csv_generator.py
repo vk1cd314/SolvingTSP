@@ -1,6 +1,8 @@
 import csv
 import os
 import random
+import shutil
+
 
 def generate_random_features():
     """Generates a random feature string in the format 'feat1,feat2,feat3'."""
@@ -34,8 +36,10 @@ def append_edges_csv(edges, tour_edges, output_csv, graph_id):
     with open(output_csv, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
         for src, dst, weight in edges:
-            feat = 0
-            writer.writerow([graph_id, src, dst, weight])
+            label = 0
+            if (src, dst) in tour_edges:
+                label = 1
+            writer.writerow([graph_id, src, dst, label, f'{weight}'])
 
 def append_nodes_csv(num_nodes, output_csv, graph_id):
     """Appends the nodes to nodes.csv file."""
@@ -43,13 +47,13 @@ def append_nodes_csv(num_nodes, output_csv, graph_id):
         writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
         for node_id in range(num_nodes):
             feat = 0
-            writer.writerow([graph_id, node_id, feat])
+            writer.writerow([graph_id, node_id, f'{feat}'])
 
 def append_graphs_csv(output_csv, graph_id):
     """Appends to the graphs.csv file."""
     with open(output_csv, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
-        writer.writerow([graph_id, 0, 0])
+        writer.writerow([graph_id, '0', 0])
 
 def process_multiple_graphs(graph_files, tour_files, output_dir):
     """Processes multiple graph and tour files and appends data to edges.csv, nodes.csv, and graphs.csv."""
@@ -63,7 +67,7 @@ def process_multiple_graphs(graph_files, tour_files, output_dir):
     if not os.path.exists(edges_csv):
         with open(edges_csv, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
-            writer.writerow(['graph_id', 'src_id', 'dst_id', 'feat'])
+            writer.writerow(['graph_id', 'src_id', 'dst_id', 'label', 'feat'])
 
     if not os.path.exists(nodes_csv):
         with open(nodes_csv, 'w', newline='') as f:
@@ -83,9 +87,16 @@ def process_multiple_graphs(graph_files, tour_files, output_dir):
         append_nodes_csv(num_nodes, nodes_csv, graph_id)
         append_graphs_csv(graphs_csv, graph_id)
 
+
+
 graph_files = ['input_graph.txt', 'input_graph.txt'] 
 tour_files = ['input_graph.sol', 'input_graph.sol'] 
 output_dir = './generated-data/'
+dataname = 'tspdata/'
+data_dir = os.path.join(output_dir, dataname)
+if os.path.exists(data_dir) and os.path.isdir(data_dir):
+    print("deleting cache")
+    shutil.rmtree(data_dir)
 
 edges_csv = os.path.join(output_dir, 'edges.csv')
 nodes_csv = os.path.join(output_dir, 'nodes.csv')
