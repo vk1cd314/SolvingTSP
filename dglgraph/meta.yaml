@@ -1,4 +1,4 @@
-dataset_name: tsp-test
+dataset_name: tspdata 
 edge_data:
 - file_name: edges.csv
 node_data:
