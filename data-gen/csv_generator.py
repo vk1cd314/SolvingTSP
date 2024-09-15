@@ -89,8 +89,8 @@ def process_multiple_graphs(graph_files, tour_files, output_dir):
 
 
 
-graph_files = ['input_graph.txt', 'input_graph.txt'] 
-tour_files = ['input_graph.sol', 'input_graph.sol'] 
+graph_files = ['input_graph.txt', 'input_graph.txt', 'input_graph.txt', 'input_graph.txt', 'input_graph.txt', 'input_graph.txt'] 
+tour_files = ['input_graph.sol', 'input_graph.sol', 'input_graph.sol', 'input_graph.sol', 'input_graph.sol', 'input_graph.sol'] 
 output_dir = './generated-data/'
 dataname = 'tspdata/'
 data_dir = os.path.join(output_dir, dataname)

@@ -60,58 +60,9 @@ def construct_dgl_graphs(nodes_df, edges_df):
         g.edata['feat'] = edge_feats
         g.edata['label'] = labels
         
-        g = split_edges(g)
         graphs.append(g)
     
     return graphs
-
-def split_edges(g, train_ratio=0.6, val_ratio=0.2, test_ratio=0.2):
-    """
-    Splits edges of a graph into training, validation, and test sets.
-
-    @param g DGL graph.
-    @param train_ratio Ratio of edges used for training.
-    @param val_ratio Ratio of edges used for validation.
-    @param test_ratio Ratio of edges used for testing.
-    @return Graph with train, validation, and test masks.
-    """
-    num_edges = g.number_of_edges()
-    all_indices = torch.arange(num_edges)
-    labels = g.edata['label'].numpy()
-    
-    unique_labels, counts = np.unique(labels, return_counts=True)
-    min_count = counts.min()
-    if min_count < 2:
-        raise ValueError("At least two samples are required for each class to perform stratified splitting.")
-    
-    train_idx, temp_idx = train_test_split(
-        all_indices.numpy(),
-        test_size=(1 - train_ratio),
-        random_state=42,
-        stratify=labels
-    )
-    
-    temp_labels = labels[temp_idx]
-    val_idx, test_idx = train_test_split(
-        temp_idx,
-        test_size=(test_ratio / (test_ratio + val_ratio)),
-        random_state=42,
-        stratify=temp_labels
-    )
-    
-    train_mask = torch.zeros(num_edges, dtype=torch.bool)
-    val_mask = torch.zeros(num_edges, dtype=torch.bool)
-    test_mask = torch.zeros(num_edges, dtype=torch.bool)
-    
-    train_mask[train_idx] = True
-    val_mask[val_idx] = True
-    test_mask[test_idx] = True
-    
-    g.edata['train_mask'] = train_mask
-    g.edata['val_mask'] = val_mask
-    g.edata['test_mask'] = test_mask
-    
-    return g
 
 class EdgeClassifier(nn.Module):
     """
@@ -154,11 +105,11 @@ class EdgeClassifier(nn.Module):
             logits = self.edge_mlp(edge_repr)
         return logits
 
-def train_edge_classifier(graphs, model, epochs=100, lr=0.001, device='cpu'):
+def train_edge_classifier(train_graphs, model, epochs=100, lr=0.001, device='cpu'):
     """
     Trains the edge classifier model.
 
-    @param graphs List of DGL graphs for training.
+    @param train_graphs List of DGL graphs for training.
     @param model EdgeClassifier model.
     @param epochs Number of training epochs.
     @param lr Learning rate.
@@ -174,26 +125,24 @@ def train_edge_classifier(graphs, model, epochs=100, lr=0.001, device='cpu'):
         epoch_acc = 0
         total = 0
         
-        for g in graphs:
+        for g in train_graphs:
             g = g.to(device)
             node_feats = g.ndata['feat'].to(device).float()
             edge_feats = g.edata['feat'].to(device).float()
             labels = g.edata['label'].to(device)
-            train_mask = g.edata['train_mask'].to(device)
             
             optimizer.zero_grad()
             logits = model(g, node_feats, edge_feats)
-            loss = loss_fn(logits[train_mask], labels[train_mask])
+            loss = loss_fn(logits, labels)
             loss.backward()
             optimizer.step()
             
-            epoch_loss += loss.item() * train_mask.sum().item()
+            epoch_loss += loss.item() * g.number_of_edges()
             
             _, predicted = torch.max(logits, dim=1)
-            correct = (predicted == labels) & train_mask
-            acc = correct.sum().item()
-            epoch_acc += acc
-            total += train_mask.sum().item()
+            correct = (predicted == labels).sum().item()
+            epoch_acc += correct
+            total += g.number_of_edges()
         
         avg_loss = epoch_loss / total
         avg_acc = epoch_acc / total
@@ -214,86 +163,56 @@ def evaluate_edge_classifier(graphs, model, device='cpu'):
     model.eval()
     model.to(device)
     
-    total_val_loss = 0
-    total_test_loss = 0
-    total_val_correct = 0
-    total_test_correct = 0
-    total_val_samples = 0
-    total_test_samples = 0
-    all_val_labels = []
-    all_val_preds = []
-    all_test_labels = []
-    all_test_preds = []
+    total_loss = 0
+    total_correct = 0
+    total_samples = 0
+    all_labels = []
+    all_preds = []
     
     loss_fn = nn.CrossEntropyLoss()
     
     with torch.no_grad():
         for g in graphs:
-            # print(g)
             g = g.to(device)
             node_feats = g.ndata['feat'].to(device).float()
             edge_feats = g.edata['feat'].to(device).float()
             labels = g.edata['label'].to(device)
             
             logits = model(g, node_feats, edge_feats)
+            loss = loss_fn(logits, labels)
+            total_loss += loss.item() * g.number_of_edges()
+            
             _, predicted = torch.max(logits, dim=1)
-
-            val_mask = g.edata['val_mask'].to(device)
-            val_labels = labels[val_mask]
-            val_preds = predicted[val_mask]
-            val_correct = (val_preds == val_labels).sum().item()
-            val_loss = loss_fn(logits[val_mask], val_labels).item()
+            correct = (predicted == labels).sum().item()
+            total_correct += correct
+            total_samples += g.number_of_edges()
             
-            total_val_loss += val_loss * val_mask.sum().item()
-            total_val_correct += val_correct
-            total_val_samples += val_mask.sum().item()
-            all_val_labels.extend(val_labels.cpu().numpy())
-            all_val_preds.extend(val_preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(predicted.cpu().numpy())
+    
+    avg_loss = total_loss / total_samples
+    accuracy = total_correct / total_samples
+    
+    print(f"Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+    print("\nConfusion Matrix:")
+    print(confusion_matrix(all_labels, all_preds))
 
-            test_mask = g.edata['test_mask'].to(device)
-            test_labels = labels[test_mask]
-            test_preds = predicted[test_mask]
-            test_correct = (test_preds == test_labels).sum().item()
-            test_loss = loss_fn(logits[test_mask], test_labels).item()
-            
-            total_test_loss += test_loss * test_mask.sum().item()
-            total_test_correct += test_correct
-            total_test_samples += test_mask.sum().item()
-            all_test_labels.extend(test_labels.cpu().numpy())
-            all_test_preds.extend(test_preds.cpu().numpy())
+    precision = precision_score(all_labels, all_preds, average='weighted')
+    recall = recall_score(all_labels, all_preds, average='weighted')
+    f1 = f1_score(all_labels, all_preds, average='weighted')
 
-        avg_val_loss = total_val_loss / total_val_samples
-        avg_test_loss = total_test_loss / total_test_samples
-        val_accuracy = total_val_correct / total_val_samples
-        test_accuracy = total_test_correct / total_test_samples
+    print(f"\nPrecision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}")
 
-        print(f"Validation Loss: {avg_val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
-        print(f"Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
-
-        print("\nValidation Confusion Matrix:")
-        print(confusion_matrix(all_val_labels, all_val_preds))
-        
-        print("\nTest Confusion Matrix:")
-        print(confusion_matrix(all_test_labels, all_test_preds))
-
-        val_precision = precision_score(all_val_labels, all_val_preds, average='weighted')
-        val_recall = recall_score(all_val_labels, all_val_preds, average='weighted')
-        val_f1 = f1_score(all_val_labels, all_val_preds, average='weighted')
-        test_precision = precision_score(all_test_labels, all_test_preds, average='weighted')
-        test_recall = recall_score(all_test_labels, all_test_preds, average='weighted')
-        test_f1 = f1_score(all_test_labels, all_test_preds, average='weighted')
-
-        print(f"\nValidation Precision: {val_precision:.4f}, Recall: {val_recall:.4f}, F1-Score: {val_f1:.4f}")
-        print(f"Test Precision: {test_precision:.4f}, Recall: {test_recall:.4f}, F1-Score: {test_f1:.4f}")
-
-        print("\nSample of Predictions vs Ground Truth (Validation Set):")
-        for i in range(5):  # Show 5 random examples
-            print(f"Prediction: {all_val_preds[i]}, Ground Truth: {all_val_labels[i]}")
+    print("\nSample of Predictions vs Ground Truth:")
+    for i in range(min(5, len(all_preds))):
+        print(f"Prediction: {all_preds[i]}, Ground Truth: {all_labels[i]}")
 
 if __name__ == "__main__":
+    # Load data
     nodes_df, edges_df = load_csv_data('./generated-data')
     graphs = construct_dgl_graphs(nodes_df, edges_df)
     
+    # Define model parameters based on a sample graph
     sample_graph = graphs[0]
     in_feats = sample_graph.ndata['feat'].shape[1]
     edge_feat_size = sample_graph.edata['feat'].shape[1]
@@ -305,5 +224,31 @@ if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     
-    train_edge_classifier(graphs, model, epochs=100, lr=0.001, device=device)
-    evaluate_edge_classifier(graphs, model, device=device)
+    # Split graphs into train, validation, and test sets
+    num_graphs = len(graphs)
+    train_size = int(0.6 * num_graphs)
+    val_size = int(0.2 * num_graphs)
+    test_size = num_graphs - train_size - val_size  # Ensures all graphs are used
+
+    train_graphs, temp_graphs = train_test_split(
+        graphs, train_size=train_size, random_state=42, shuffle=True
+    )
+    val_graphs, test_graphs = train_test_split(
+        temp_graphs, test_size=test_size, random_state=42, shuffle=True
+    )
+
+    print(f"Total graphs: {num_graphs}")
+    print(f"Training graphs: {len(train_graphs)}")
+    print(f"Validation graphs: {len(val_graphs)}")
+    print(f"Testing graphs: {len(test_graphs)}")
+    
+    # Train the model
+    train_edge_classifier(train_graphs, model, epochs=100, lr=0.001, device=device)
+    
+    # Evaluate on validation set
+    print("\n--- Validation Set Evaluation ---")
+    evaluate_edge_classifier(val_graphs, model, device=device)
+    
+    # Evaluate on test set
+    print("\n--- Test Set Evaluation ---")
+    evaluate_edge_classifier(test_graphs, model, device=device)
