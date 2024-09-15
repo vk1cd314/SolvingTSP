@@ -90,4 +90,12 @@ graph_files = ['input_graph.txt', 'input_graph.txt']
 tour_files = ['input_graph.sol', 'input_graph.sol'] 
 output_dir = './generated-data/'
 
+edges_csv = os.path.join(output_dir, 'edges.csv')
+nodes_csv = os.path.join(output_dir, 'nodes.csv')
+graphs_csv = os.path.join(output_dir, 'graphs.csv')
+
+for file_path in [edges_csv, nodes_csv, graphs_csv]:
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
 process_multiple_graphs(graph_files, tour_files, output_dir)
