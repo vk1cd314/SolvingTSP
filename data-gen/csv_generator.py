@@ -60,7 +60,6 @@ def process_multiple_graphs(graph_files, tour_files, output_dir):
     nodes_csv = os.path.join(output_dir, 'nodes.csv')
     graphs_csv = os.path.join(output_dir, 'graphs.csv')
 
-    # Initialize edges.csv and nodes.csv with headers only once
     if not os.path.exists(edges_csv):
         with open(edges_csv, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
@@ -71,13 +70,11 @@ def process_multiple_graphs(graph_files, tour_files, output_dir):
             writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
             writer.writerow(['graph_id', 'node_id', 'feat'])
 
-    # Initialize graphs.csv with headers only once
     if not os.path.exists(graphs_csv):
         with open(graphs_csv, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
             writer.writerow(['graph_id', 'feat', 'label'])
 
-    # Process each graph and append to the CSV files
     for graph_id, (graph_file, tour_file) in enumerate(zip(graph_files, tour_files)):
         edges, num_nodes = read_graph(graph_file)
         tour_edges = read_tour(tour_file)
