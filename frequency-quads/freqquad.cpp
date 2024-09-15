@@ -119,4 +119,6 @@ int main(int argc, char **argv) {
     int w = edge_map[u][v];
     cout << u << " " << v << ' ' << w << '\n';
   }
+  for (int i = 0; i < n; ++i) {}
 }
+

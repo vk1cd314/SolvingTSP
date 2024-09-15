@@ -5,14 +5,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import dgl
-import dgl.function as fn
-from dgl.nn.functional import edge_softmax
+from dgl.nn import GatedGCNConv
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 import sys
-
 
 def load_csv_data(data_directory):
     """
@@ -84,124 +82,16 @@ def construct_dgl_graphs(nodes_df, edges_df):
 
     return graphs
 
-
-class GraphAttentionLayer(nn.Module):
-    """
-    Custom Multi-Head Graph Attention Layer that incorporates edge features.
-
-    Args:
-        in_feats (int): Size of input node features.
-        edge_feats (int): Size of edge features.
-        out_feats (int): Size of output node features per head.
-        num_heads (int): Number of attention heads.
-        dropout (float): Dropout rate.
-        alpha (float): Negative slope for LeakyReLU.
-        concat (bool): Whether to concatenate the attention heads' output.
-    """
-    def __init__(self, in_feats, edge_feats, out_feats, num_heads=4, dropout=0.6, alpha=0.2, concat=True):
-        super(GraphAttentionLayer, self).__init__()
-        self.in_feats = in_feats
-        self.edge_feats = edge_feats
-        self.out_feats = out_feats
-        self.num_heads = num_heads
-        self.dropout = nn.Dropout(dropout)
-        self.alpha = alpha
-        self.concat = concat
-
-        # Linear layers for node and edge features
-        self.W = nn.Linear(in_feats, out_feats * num_heads, bias=False)
-        self.W_e = nn.Linear(edge_feats, out_feats * num_heads, bias=False)
-
-        # Attention mechanism parameters for each head
-        self.a_src = nn.Parameter(torch.FloatTensor(num_heads, out_feats, 1))
-        self.a_dst = nn.Parameter(torch.FloatTensor(num_heads, out_feats, 1))
-        self.a_edge = nn.Parameter(torch.FloatTensor(num_heads, out_feats, 1))
-
-        # Initialize parameters
-        nn.init.xavier_uniform_(self.W.weight.data, gain=1.414)
-        nn.init.xavier_uniform_(self.W_e.weight.data, gain=1.414)
-        nn.init.xavier_uniform_(self.a_src.data, gain=1.414)
-        nn.init.xavier_uniform_(self.a_dst.data, gain=1.414)
-        nn.init.xavier_uniform_(self.a_edge.data, gain=1.414)
-
-    def edge_attention(self, edges):
-        # Compute attention scores
-        src = edges.src['Wh']  # (E, num_heads, out_feats)
-        dst = edges.dst['Wh']  # (E, num_heads, out_feats)
-        e = edges.data['We']    # (E, num_heads, out_feats)
-
-        # Compute attention score using einsum for efficiency
-        # (E, num_heads, out_feats) * (num_heads, out_feats) -> (E, num_heads)
-        score = torch.einsum('ehf,hf->eh', src, self.a_src.squeeze(-1)) + \
-                torch.einsum('ehf,hf->eh', dst, self.a_dst.squeeze(-1)) + \
-                torch.einsum('ehf,hf->eh', e, self.a_edge.squeeze(-1))  # (E, num_heads)
-
-        score = F.leaky_relu(score, self.alpha)  # (E, num_heads)
-
-        return {'score': score.contiguous()}  # Ensure contiguity
-
-    def message_func(self, edges):
-        # Multiply the transformed node features by the attention scores
-        # edges.src['Wh']: (E, num_heads, out_feats)
-        # edges.data['a']: (E, num_heads, 1)
-        return {'Wh': edges.src['Wh'] * edges.data['a']}  # (E, num_heads, out_feats)
-
-    def forward(self, g, h, edge_features):
-        """
-        Forward pass of the Graph Attention Layer.
-
-        Args:
-            g (dgl.DGLGraph): The input graph.
-            h (torch.Tensor): Node features of shape (N, in_feats).
-            edge_features (torch.Tensor): Edge features of shape (E, edge_feats).
-
-        Returns:
-            torch.Tensor: Updated node features of shape (N, num_heads * out_feats) if concat=True,
-                          else (N, out_feats).
-        """
-        Wh = self.W(h).view(-1, self.num_heads, self.out_feats)          # (N, num_heads, out_feats)
-        We = self.W_e(edge_features).view(-1, self.num_heads, self.out_feats)  # (E, num_heads, out_feats)
-
-        g = g.local_var()
-        g.ndata['Wh'] = Wh
-        g.edata['We'] = We
-
-        # Compute attention scores
-        g.apply_edges(self.edge_attention)  # Stores 'score' in edges
-
-        # Perform softmax over the attention scores for each head
-        scores = g.edata.pop('score')       # (E, num_heads)
-        scores = scores.contiguous().unsqueeze(-1)  # (E, num_heads, 1)
-        g.edata['a'] = edge_softmax(g, scores.squeeze(-1)).unsqueeze(-1)  # (E, num_heads, 1)
-
-        # Apply dropout to attention scores
-        g.edata['a'] = self.dropout(g.edata['a'])
-
-        # Send messages with attention scores
-        g.update_all(self.message_func, fn.sum(msg='Wh', out='h_new'))
-
-        h_new = g.ndata['h_new']  # (N, num_heads, out_feats)
-
-        if self.concat:
-            # Concatenate the heads
-            h_new = h_new.view(-1, self.num_heads * self.out_feats)  # (N, num_heads * out_feats)
-            return F.elu(h_new)
-        else:
-            # Average the heads
-            h_new = h_new.mean(dim=1)  # (N, out_feats)
-            return h_new
-
-
 class EdgeClassifier(nn.Module):
     """
-    Graph Neural Network model for edge classification using custom GraphAttentionLayer.
+    Graph Neural Network model for edge classification using GatedGCNConv.
 
     Args:
         in_feats (int): Size of input node features.
         hidden_size (int): Size of hidden layers.
         num_classes (int): Number of classes for edge classification.
         edge_feat_size (int): Size of edge features.
-        num_layers (int): Number of GraphAttentionLayer layers.
+        num_layers (int): Number of GatedGCNConv layers.
         dropout (float): Dropout rate for regularization.
     """
     def __init__(self, in_feats, hidden_size, num_classes, edge_feat_size=1, num_layers=3, dropout=0.5):
@@ -210,49 +100,40 @@ class EdgeClassifier(nn.Module):
         self.dropout = dropout
 
         self.convs = nn.ModuleList()
-
-        # Input layer
+        
         self.convs.append(
-            GraphAttentionLayer(
-                in_feats=in_feats,
+            GatedGCNConv(
+                input_feats=in_feats,
                 edge_feats=edge_feat_size,
-                out_feats=hidden_size,
-                num_heads=4,           # You can adjust the number of heads
-                dropout=dropout,
-                alpha=0.2,
-                concat=True
+                output_feats=hidden_size,
+                activation=F.elu,
+                dropout=dropout
             )
         )
-
-        # Hidden layers
+        
         for _ in range(num_layers - 2):
             self.convs.append(
-                GraphAttentionLayer(
-                    in_feats=hidden_size * 4,  # Because concat=True and num_heads=4
-                    edge_feats=edge_feat_size,
-                    out_feats=hidden_size,
-                    num_heads=4,
-                    dropout=dropout,
-                    alpha=0.2,
-                    concat=True
+                GatedGCNConv(
+                    input_feats=hidden_size,
+                    edge_feats=hidden_size,
+                    output_feats=hidden_size,
+                    activation=F.leaky_relu,
+                    dropout=dropout
                 )
             )
-
-        # Output layer
+        
         self.convs.append(
-            GraphAttentionLayer(
-                in_feats=hidden_size * 4,
-                edge_feats=edge_feat_size,
-                out_feats=hidden_size,
-                num_heads=1,          # Single head for the final layer
-                dropout=dropout,
-                alpha=0.2,
-                concat=False          # No concatenation, output shape (N, hidden_size)
+            GatedGCNConv(
+                input_feats=hidden_size,
+                edge_feats=hidden_size,
+                output_feats=hidden_size,
+                activation=F.leaky_relu,
+                dropout=dropout
             )
         )
 
         self.edge_mlp = nn.Sequential(
-            nn.Linear(2 * hidden_size + edge_feat_size, hidden_size),
+            nn.Linear(3 * hidden_size, hidden_size),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_size, num_classes)
@@ -274,15 +155,15 @@ class EdgeClassifier(nn.Module):
         e = edge_feats
 
         for conv in self.convs:
-            h = conv(g, h, e)
+            h, e = conv(g, h, e)
+            h = F.leaky_relu(h)
             h = F.dropout(h, p=self.dropout, training=self.training)
+            e = F.leaky_relu(e)
+            e = F.dropout(e, p=self.dropout, training=self.training)
 
-        # After all GraphAttentionLayers, h has shape (N, hidden_size)
-        # To classify edges, concatenate source and destination node representations along with edge features
-        src, dst = g.edges()
-        src_h = h[src]  # (E, hidden_size)
-        dst_h = h[dst]  # (E, hidden_size)
-        edge_repr = torch.cat([src_h, dst_h, e], dim=1)  # [E, 2 * hidden_size + edge_feat_size]
+        src_h = h[g.edges()[0]]
+        dst_h = h[g.edges()[1]]
+        edge_repr = torch.cat([src_h, dst_h, e], dim=1)  # [E, 3 * hidden_size]
         logits = self.edge_mlp(edge_repr)
         return logits
 
@@ -303,6 +184,7 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
     """
     model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    # Removed 'verbose=True' to address deprecation warning
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
     loss_fn = nn.CrossEntropyLoss()
 
@@ -433,7 +315,6 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     for i in range(min(5, len(all_preds))):
         print(f"Prediction: {all_preds[i]}, Ground Truth: {all_labels[i]}")
 
-
 def main(args):
     """
     Main function to execute the training and evaluation pipeline.
@@ -520,12 +401,11 @@ def main(args):
     if writer:
         writer.close()
 
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Graph Edge Classification with Enhanced GraphAttentionLayer")
+    parser = argparse.ArgumentParser(description="Graph Edge Classification with GatedGCNConv")
     parser.add_argument('--data_dir', type=str, default='./generated-data', help='Directory containing data and meta.yaml')
     parser.add_argument('--hidden_size', type=int, default=64, help='Hidden layer size')
-    parser.add_argument('--num_layers', type=int, default=3, help='Number of GraphAttentionLayer layers')
+    parser.add_argument('--num_layers', type=int, default=3, help='Number of GatedGCNConv layers')
     parser.add_argument('--dropout', type=float, default=0.5, help='Dropout rate')
     parser.add_argument('--epochs', type=int, default=1000, help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
