@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import dgl
 from dgl.nn import SAGEConv
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 import numpy as np
 
 def load_csv_data(data_directory):
@@ -212,11 +213,23 @@ def evaluate_edge_classifier(graphs, model, device='cpu'):
     """
     model.eval()
     model.to(device)
+    
+    total_val_loss = 0
+    total_test_loss = 0
+    total_val_correct = 0
+    total_test_correct = 0
+    total_val_samples = 0
+    total_test_samples = 0
+    all_val_labels = []
+    all_val_preds = []
+    all_test_labels = []
+    all_test_preds = []
+    
+    loss_fn = nn.CrossEntropyLoss()
+    
     with torch.no_grad():
-        best_val_acc = 0
-        best_test_acc = 0
-        
         for g in graphs:
+            # print(g)
             g = g.to(device)
             node_feats = g.ndata['feat'].to(device).float()
             edge_feats = g.edata['feat'].to(device).float()
@@ -224,20 +237,58 @@ def evaluate_edge_classifier(graphs, model, device='cpu'):
             
             logits = model(g, node_feats, edge_feats)
             _, predicted = torch.max(logits, dim=1)
-            
+
             val_mask = g.edata['val_mask'].to(device)
-            val_correct = (predicted == labels) & val_mask
-            val_acc = val_correct.sum().item() / val_mask.sum().item()
+            val_labels = labels[val_mask]
+            val_preds = predicted[val_mask]
+            val_correct = (val_preds == val_labels).sum().item()
+            val_loss = loss_fn(logits[val_mask], val_labels).item()
             
+            total_val_loss += val_loss * val_mask.sum().item()
+            total_val_correct += val_correct
+            total_val_samples += val_mask.sum().item()
+            all_val_labels.extend(val_labels.cpu().numpy())
+            all_val_preds.extend(val_preds.cpu().numpy())
+
             test_mask = g.edata['test_mask'].to(device)
-            test_correct = (predicted == labels) & test_mask
-            test_acc = test_correct.sum().item() / test_mask.sum().item()
+            test_labels = labels[test_mask]
+            test_preds = predicted[test_mask]
+            test_correct = (test_preds == test_labels).sum().item()
+            test_loss = loss_fn(logits[test_mask], test_labels).item()
             
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                best_test_acc = test_acc
+            total_test_loss += test_loss * test_mask.sum().item()
+            total_test_correct += test_correct
+            total_test_samples += test_mask.sum().item()
+            all_test_labels.extend(test_labels.cpu().numpy())
+            all_test_preds.extend(test_preds.cpu().numpy())
+
+        avg_val_loss = total_val_loss / total_val_samples
+        avg_test_loss = total_test_loss / total_test_samples
+        val_accuracy = total_val_correct / total_val_samples
+        test_accuracy = total_test_correct / total_test_samples
+
+        print(f"Validation Loss: {avg_val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
+        print(f"Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
+
+        print("\nValidation Confusion Matrix:")
+        print(confusion_matrix(all_val_labels, all_val_preds))
         
-        print(f"Best Validation Accuracy: {best_val_acc:.4f}, Corresponding Test Accuracy: {best_test_acc:.4f}")
+        print("\nTest Confusion Matrix:")
+        print(confusion_matrix(all_test_labels, all_test_preds))
+
+        val_precision = precision_score(all_val_labels, all_val_preds, average='weighted')
+        val_recall = recall_score(all_val_labels, all_val_preds, average='weighted')
+        val_f1 = f1_score(all_val_labels, all_val_preds, average='weighted')
+        test_precision = precision_score(all_test_labels, all_test_preds, average='weighted')
+        test_recall = recall_score(all_test_labels, all_test_preds, average='weighted')
+        test_f1 = f1_score(all_test_labels, all_test_preds, average='weighted')
+
+        print(f"\nValidation Precision: {val_precision:.4f}, Recall: {val_recall:.4f}, F1-Score: {val_f1:.4f}")
+        print(f"Test Precision: {test_precision:.4f}, Recall: {test_recall:.4f}, F1-Score: {test_f1:.4f}")
+
+        print("\nSample of Predictions vs Ground Truth (Validation Set):")
+        for i in range(5):  # Show 5 random examples
+            print(f"Prediction: {all_val_preds[i]}, Ground Truth: {all_val_labels[i]}")
 
 if __name__ == "__main__":
     nodes_df, edges_df = load_csv_data('./generated-data')
@@ -248,7 +299,7 @@ if __name__ == "__main__":
     edge_feat_size = sample_graph.edata['feat'].shape[1]
     num_classes = sample_graph.edata['label'].max().item() + 1
     
-    hidden_size = 16
+    hidden_size = 64
     model = EdgeClassifier(in_feats, hidden_size, num_classes, edge_feat_size=edge_feat_size)
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
