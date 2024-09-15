@@ -76,10 +76,17 @@ def generate_nodes_csv(graph_file, output_csv, graph_id):
 
 # Example usage
 graph_number = 0  # Replace with the actual graph number
+<<<<<<< HEAD
 input_graph_file = f'../graph_out/input_graph.txt'
 tour_file = f'../graph_out/input_graph.sol'
 output_csv_file = '../dglgraph/edges.csv'
 output_csv_node_file = '../dglgraph/nodes.csv'
+=======
+input_graph_file = f'input_graph.txt'
+tour_file = f'input_graph.sol'
+output_csv_file = './dglgraph/edges.csv'
+output_csv_node_file = './dglgraph/nodes.csv'
+>>>>>>> main
 
 # Generate the CSV file
 generate_edge_csv(input_graph_file, tour_file, output_csv_file, graph_number)
