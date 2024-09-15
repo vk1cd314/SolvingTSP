@@ -1,87 +1,93 @@
 import csv
+import os
+import random
+
+def generate_random_features():
+    """Generates a random feature string in the format 'feat1,feat2,feat3'."""
+    return f"{random.random()},{random.random()},{random.random()}"
 
 def read_graph(graph_file):
-    """Reads the input graph file and returns a list of edges (src, dst, weight)."""
+    """Reads the graph file and returns a list of edges (src, dst, weight)."""
     edges = []
     with open(graph_file, 'r') as f:
-        # Read the number of nodes and edges (not used directly in processing)
         num_nodes, num_edges = map(int, f.readline().strip().split())
-        
-        # Read all the edges
         for line in f:
             src, dst, weight = line.strip().split()
             edges.append((int(src), int(dst), int(weight)))
-    return edges
+    return edges, num_nodes
 
 def read_tour(tour_file):
     """Reads the tour file and returns a set of edges (src, dst) in the tour."""
     tour_edges = set()
     with open(tour_file, 'r') as f:
-        # Read the number of nodes in the tour (not used directly)
         num_nodes = int(f.readline().strip())
-        
-        # Read the node sequence of the tour
         tour = list(map(int, f.read().split()))
-        
-        # Generate edges from the tour sequence
         for i in range(len(tour) - 1):
-            src = tour[i]
-            dst = tour[i + 1]
-            # Add the edge to the set (smallest node first for consistency)
+            src, dst = tour[i], tour[i + 1]
             tour_edges.add((min(src, dst), max(src, dst)))
-            
-        # Also connect the last node to the first to form a cycle
-        src = tour[-1]
-        dst = tour[0]
+        src, dst = tour[-1], tour[0]
         tour_edges.add((min(src, dst), max(src, dst)))
-    
     return tour_edges
 
-def generate_edge_csv(graph_file, tour_file, output_csv, graph_id):
-    """Generates the edge.csv file from the graph and tour files."""
-    edges = read_graph(graph_file)
-    print(edges[0])
-    tour_edges = read_tour(tour_file)
-    
-    with open(output_csv, 'w', newline='') as csvfile:
+def append_edges_csv(edges, tour_edges, output_csv, graph_id):
+    """Appends the edges to edges.csv file."""
+    with open(output_csv, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
-        # Write the header
-        writer.writerow(['graph_id', 'src_id', 'dst_id',  'feat'])
-        
-        # Write the edges
         for src, dst, weight in edges:
-            # Sort the src, dst pair to maintain consistency
-            edge = (min(src, dst), max(src, dst))
-            # Check if this edge is in the tour
-            label = 1 if edge in tour_edges else 0
-            # Write the row: graph_id, src_id, dst_id, label, feat
-            writer.writerow([graph_id, src, dst,  f'{weight}'])
+            feat = 0
+            writer.writerow([graph_id, src, dst, weight])
 
-
-def generate_nodes_csv(graph_file, output_csv, graph_id):
-    """Generates the nodes.csv file from the graph file."""
-    with open(graph_file, 'r') as f:
-        # Read the number of nodes from the first line of the graph file
-        num_nodes, _ = map(int, f.readline().strip().split())
-    
-    # Create the CSV file
-    with open(output_csv, 'w', newline='') as csvfile:
+def append_nodes_csv(num_nodes, output_csv, graph_id):
+    """Appends the nodes to nodes.csv file."""
+    with open(output_csv, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
-        # Write the header
-        writer.writerow(['graph_id', 'node_id', 'feat'])
-        
-        # Write each node with label and feat set to 0
         for node_id in range(num_nodes):
-            writer.writerow([graph_id, node_id,  f'0'])
+            feat = 0
+            writer.writerow([graph_id, node_id, feat])
 
-# Example usage
-graph_number = 0  # Replace with the actual graph number
-nput_graph_file = f'input_graph.txt'
-tour_file = f'input_graph.sol'
-output_csv_file = './dglgraph/edges.csv'
-output_csv_node_file = './dglgraph/nodes.csv'
+def append_graphs_csv(output_csv, graph_id):
+    """Appends to the graphs.csv file."""
+    with open(output_csv, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
+        writer.writerow([graph_id, 0, 0])
 
-# Generate the CSV file
-generate_edge_csv(input_graph_file, tour_file, output_csv_file, graph_number)
-generate_nodes_csv(input_graph_file, output_csv_node_file, graph_number)
+def process_multiple_graphs(graph_files, tour_files, output_dir):
+    """Processes multiple graph and tour files and appends data to edges.csv, nodes.csv, and graphs.csv."""
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    edges_csv = os.path.join(output_dir, 'edges.csv')
+    nodes_csv = os.path.join(output_dir, 'nodes.csv')
+    graphs_csv = os.path.join(output_dir, 'graphs.csv')
 
+    # Initialize edges.csv and nodes.csv with headers only once
+    if not os.path.exists(edges_csv):
+        with open(edges_csv, 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
+            writer.writerow(['graph_id', 'src_id', 'dst_id', 'feat'])
+
+    if not os.path.exists(nodes_csv):
+        with open(nodes_csv, 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
+            writer.writerow(['graph_id', 'node_id', 'feat'])
+
+    # Initialize graphs.csv with headers only once
+    if not os.path.exists(graphs_csv):
+        with open(graphs_csv, 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_NONNUMERIC)
+            writer.writerow(['graph_id', 'feat', 'label'])
+
+    # Process each graph and append to the CSV files
+    for graph_id, (graph_file, tour_file) in enumerate(zip(graph_files, tour_files)):
+        edges, num_nodes = read_graph(graph_file)
+        tour_edges = read_tour(tour_file)
+
+        append_edges_csv(edges, tour_edges, edges_csv, graph_id)
+        append_nodes_csv(num_nodes, nodes_csv, graph_id)
+        append_graphs_csv(graphs_csv, graph_id)
+
+graph_files = ['input_graph.txt', 'input_graph.txt'] 
+tour_files = ['input_graph.sol', 'input_graph.sol'] 
+output_dir = './generated-data/'
+
+process_multiple_graphs(graph_files, tour_files, output_dir)
