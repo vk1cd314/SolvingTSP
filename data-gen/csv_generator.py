@@ -44,7 +44,7 @@ def generate_edge_csv(graph_file, tour_file, output_csv, graph_id):
     tour_edges = read_tour(tour_file)
     
     with open(output_csv, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, quotechar="'")
+        writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
         # Write the header
         writer.writerow(['graph_id', 'src_id', 'dst_id',  'feat'])
         
@@ -55,7 +55,7 @@ def generate_edge_csv(graph_file, tour_file, output_csv, graph_id):
             # Check if this edge is in the tour
             label = 1 if edge in tour_edges else 0
             # Write the row: graph_id, src_id, dst_id, label, feat
-            writer.writerow([graph_id, src, dst,  f'"{weight}"'])
+            writer.writerow([graph_id, src, dst,  f'{weight}'])
 
 
 def generate_nodes_csv(graph_file, output_csv, graph_id):
@@ -66,20 +66,20 @@ def generate_nodes_csv(graph_file, output_csv, graph_id):
     
     # Create the CSV file
     with open(output_csv, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, quotechar="'")
+        writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC)
         # Write the header
-        writer.writerow(['graph_id', 'node_id',  'feat'])
+        writer.writerow(['graph_id', 'node_id', 'feat'])
         
         # Write each node with label and feat set to 0
         for node_id in range(num_nodes):
-            writer.writerow([graph_id, node_id,  f'"0"'])
+            writer.writerow([graph_id, node_id,  f'0'])
 
 # Example usage
 graph_number = 0  # Replace with the actual graph number
-input_graph_file = f'input_graph.txt'
-tour_file = f'unnamed.sol'
-output_csv_file = './dglgraph/edges.csv'
-output_csv_node_file = './dglgraph/nodes.csv'
+input_graph_file = f'../graph_out/input_graph.txt'
+tour_file = f'../graph_out/input_graph.sol'
+output_csv_file = '../dglgraph/edges.csv'
+output_csv_node_file = '../dglgraph/nodes.csv'
 
 # Generate the CSV file
 generate_edge_csv(input_graph_file, tour_file, output_csv_file, graph_number)
