@@ -308,7 +308,6 @@ class EdgeClassifier(nn.Module):
         logits = self.edge_mlp(edge_repr)
         return logits
 
-
 def train_edge_classifier(
     train_graphs,
     val_graphs,
@@ -334,8 +333,9 @@ def train_edge_classifier(
     """
     model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    # Change the scheduler to monitor F1 score (higher is better)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=10, verbose=True
+        optimizer, mode='max', factor=0.5, patience=10, verbose=True
     )
     from sklearn.utils.class_weight import compute_class_weight
     all_train_labels = []
@@ -348,12 +348,12 @@ def train_edge_classifier(
         y=all_train_labels
     )
     
-    class_weights = torch.tensor([0.1, 0.9], dtype=torch.float).to(device)
+    # class_weights = torch.tensor([0.01, 0.99], dtype=torch.float).to(device)
     class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 
     loss_fn = nn.CrossEntropyLoss(weight=class_weights)
 
-    best_val_loss = float('inf')
+    best_val_f1 = 0.0
     epochs_no_improve = 0
 
     for epoch in range(1, epochs + 1):
@@ -389,30 +389,40 @@ def train_edge_classifier(
         print(f"Epoch {epoch}/{epochs} - Loss: {avg_loss:.4f}, Training Accuracy: {avg_acc:.4f}")
 
         # Validate
-        val_loss, val_acc = evaluate_edge_classifier(
+        avg_val_loss, val_acc = evaluate_edge_classifier(
             val_graphs, model, device=device, loss_fn=loss_fn, return_metrics=True
         )
-        scheduler.step(val_loss)
+        # Get F1 score for validation
+        val_f1 = f1_score(
+            np.concatenate([g.edata['label'].cpu().numpy() for g in val_graphs]),
+            np.concatenate([torch.argmax(model(g.to(device), g.ndata['feat'].float(), g.edata['feat'].float()), dim=1).cpu().numpy() for g in val_graphs]),
+            pos_label=1,
+            average='binary',
+            zero_division=0
+        )
+        scheduler.step(val_f1)
 
         if writer:
-            writer.add_scalar('Validation/Loss', val_loss, epoch)
+            writer.add_scalar('Validation/Loss', avg_val_loss, epoch)
             writer.add_scalar('Validation/Accuracy', val_acc, epoch)
+            writer.add_scalar('Validation/F1', val_f1, epoch)
 
         # Check for improvement
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
             epochs_no_improve = 0
             torch.save(model.state_dict(), 'best_model.pth')
-            print(f"Validation loss improved to {val_loss:.4f}. Model saved.")
+            print(f"Validation F1 improved to {val_f1:.4f}. Model saved.")
         else:
             epochs_no_improve += 1
-            print(f"No improvement in validation loss for {epochs_no_improve} epoch(s).")
+            print(f"No improvement in validation F1 for {epochs_no_improve} epoch(s).")
 
             if epochs_no_improve >= early_stopping_patience:
                 print(f"Early stopping triggered after {epoch} epochs.")
                 break
 
     print("Training complete.")
+
 
 
 def evaluate_edge_classifier(
@@ -477,17 +487,18 @@ def evaluate_edge_classifier(
     print("\nConfusion Matrix:")
     print(confusion_matrix(all_labels, all_preds))
 
+    # Update precision, recall, and F1 for the positive class
     precision = precision_score(
-        all_labels, all_preds, average='weighted', zero_division=0
+        all_labels, all_preds, pos_label=1, average='binary', zero_division=0
     )
     recall = recall_score(
-        all_labels, all_preds, average='weighted', zero_division=0
+        all_labels, all_preds, pos_label=1, average='binary', zero_division=0
     )
     f1 = f1_score(
-        all_labels, all_preds, average='weighted', zero_division=0
+        all_labels, all_preds, pos_label=1, average='binary', zero_division=0
     )
 
-    print(f"\nPrecision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}")
+    print(f"\nPrecision (Positive Class): {precision:.4f}, Recall (Positive Class): {recall:.4f}, F1-Score (Positive Class): {f1:.4f}")
 
     print("\nSample of Predictions vs Ground Truth:")
     for i in range(min(5, len(all_preds))):
@@ -507,7 +518,6 @@ def evaluate_edge_classifier(
     print(f"Number of correctly predicted label '1's (True Positives): {true_positives}")
     print(f"Number of incorrectly predicted label '1's (False Positives): {false_positives}")
     print(f"Total number of label '1's predicted: {predicted_ones}")
-
 
 def main(args):
     """

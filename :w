@@ -10,7 +10,7 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 import sys
-import numpy as np
+
 # -----------------------------
 # Data Loading and Preprocessing
 # -----------------------------
