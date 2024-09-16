@@ -8,9 +8,47 @@ import dgl
 from dgl.nn import GatedGCNConv
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+from sklearn.utils.class_weight import compute_class_weight  # Added import
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 import sys
+import numpy as np
+
+# -----------------------------
+# Custom Loss Function Definition
+# -----------------------------
+
+class CustomLoss(nn.Module):
+    """
+    Custom loss function that combines Cross-Entropy Loss with a regularization
+    term to penalize the number of '1's predicted.
+    
+    Args:
+        class_weights (torch.Tensor): Tensor containing weights for each class.
+        lambda_reg (float): Regularization coefficient to control the penalty for '1' predictions.
+    """
+    def __init__(self, class_weights, lambda_reg=0.01):
+        super(CustomLoss, self).__init__()
+        self.cross_entropy = nn.CrossEntropyLoss(weight=class_weights)
+        self.lambda_reg = lambda_reg
+    
+    def forward(self, logits, labels):
+        # Compute Cross-Entropy Loss
+        ce = self.cross_entropy(logits, labels)
+        
+        # Compute the number of '1's predicted
+        preds = torch.argmax(logits, dim=1)
+        num_ones = (preds == 1).float().sum()
+        
+        # Regularization term to penalize '1' predictions
+        reg = self.lambda_reg * num_ones
+        
+        # Total Loss
+        return ce + reg
+
+# -----------------------------
+# Data Loading and Graph Construction
+# -----------------------------
 
 def load_csv_data(data_directory):
     """
@@ -81,6 +119,10 @@ def construct_dgl_graphs(nodes_df, edges_df):
         graphs.append(g)
 
     return graphs
+
+# -----------------------------
+# Model Definition
+# -----------------------------
 
 class EdgeClassifier(nn.Module):
     """
@@ -167,8 +209,11 @@ class EdgeClassifier(nn.Module):
         logits = self.edge_mlp(edge_repr)
         return logits
 
+# -----------------------------
+# Training Function
+# -----------------------------
 
-def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001, device='cpu', writer=None, early_stopping_patience=20):
+def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001, device='cpu', writer=None, early_stopping_patience=20, lambda_reg=0.01):
     """
     Trains the edge classifier model.
 
@@ -181,14 +226,25 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
         device (str): Device to run the training on (CPU or CUDA).
         writer (SummaryWriter, optional): TensorBoard writer for logging.
         early_stopping_patience (int): Number of epochs with no improvement after which training will be stopped.
+        lambda_reg (float): Regularization coefficient for minimizing '1' predictions.
     """
     model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    # Removed 'verbose=True' to address deprecation warning
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
-    loss_fn = nn.CrossEntropyLoss()
+    # Scheduler to monitor F1 score (higher is better)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=10, verbose=True)
 
-    best_val_loss = float('inf')
+    # Compute class weights: higher weight for '1's to reward correct identification
+    all_train_labels = []
+    for g in train_graphs:
+        all_train_labels.extend(g.edata['label'].cpu().numpy())
+    classes = np.unique(all_train_labels)
+    class_weights_np = compute_class_weight(class_weight='balanced', classes=classes, y=all_train_labels)
+    class_weights = torch.tensor(class_weights_np, dtype=torch.float).to(device)
+    
+    # Initialize Custom Loss
+    loss_fn = CustomLoss(class_weights=class_weights, lambda_reg=lambda_reg)
+
+    best_val_f1 = 0.0
     epochs_no_improve = 0
 
     for epoch in range(1, epochs + 1):
@@ -196,57 +252,78 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
         epoch_loss = 0
         epoch_correct = 0
         total = 0
+        epoch_f1 = 0.0
 
-        # Batch training graphs
-        batched_graph = dgl.batch(train_graphs)
-        batched_graph = batched_graph.to(device)
-        node_feats = batched_graph.ndata['feat'].to(device).float()
-        edge_feats = batched_graph.edata['feat'].to(device).float()
-        labels = batched_graph.edata['label'].to(device)
+        for g in train_graphs:
+            g = g.to(device)
+            node_feats = g.ndata['feat'].float()
+            edge_feats = g.edata['feat'].float()
+            labels = g.edata['label'].to(device)
 
-        optimizer.zero_grad()
-        logits = model(batched_graph, node_feats, edge_feats)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        optimizer.step()
+            optimizer.zero_grad()
+            logits = model(g, node_feats, edge_feats)
+            loss = loss_fn(logits, labels)
+            loss.backward()
+            optimizer.step()
 
-        epoch_loss += loss.item() * batched_graph.number_of_edges()
+            epoch_loss += loss.item() * g.number_of_edges()
 
-        _, predicted = torch.max(logits, dim=1)
-        correct = (predicted == labels).sum().item()
-        epoch_correct += correct
-        total += batched_graph.number_of_edges()
+            _, predicted = torch.max(logits, dim=1)
+            correct = (predicted == labels).sum().item()
+            epoch_correct += correct
+            total += g.number_of_edges()
+
+            # Calculate F1 score for this graph
+            f1 = f1_score(labels.cpu().numpy(), predicted.cpu().numpy(), pos_label=1, average='binary', zero_division=0)
+            epoch_f1 += f1
 
         avg_loss = epoch_loss / total
         avg_acc = epoch_correct / total
+        avg_f1 = epoch_f1 / len(train_graphs)  # Average F1 over all training graphs
 
         if writer:
             writer.add_scalar('Train/Loss', avg_loss, epoch)
             writer.add_scalar('Train/Accuracy', avg_acc, epoch)
+            writer.add_scalar('Train/F1_Score', avg_f1, epoch)
 
-        print(f"Epoch {epoch}/{epochs} - Loss: {avg_loss:.4f}, Training Accuracy: {avg_acc:.4f}")
+        print(f"Epoch {epoch}/{epochs} - Loss: {avg_loss:.4f}, Training Accuracy: {avg_acc:.4f}, F1-Score: {avg_f1:.4f}")
 
-        # Evaluate on validation set for early stopping
-        val_loss, val_acc = evaluate_edge_classifier(val_graphs, model, device=device, loss_fn=loss_fn, return_metrics=True)
-        scheduler.step(val_loss)
+        # Evaluate on validation set
+        val_metrics = evaluate_edge_classifier(val_graphs, model, device=device, loss_fn=loss_fn, return_metrics=True)
+        if val_metrics:
+            val_loss, val_acc, val_f1 = val_metrics
+        else:
+            val_loss, val_acc, val_f1 = None, None, None
+
+        scheduler.step(val_f1)
 
         if writer:
             writer.add_scalar('Validation/Loss', val_loss, epoch)
             writer.add_scalar('Validation/Accuracy', val_acc, epoch)
+            writer.add_scalar('Validation/F1_Score', val_f1, epoch)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        print(f"Validation - Loss: {val_loss:.4f}, Accuracy: {val_acc:.4f}, F1-Score: {val_f1:.4f}")
+
+        # Check for improvement based on F1-Score
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
             epochs_no_improve = 0
             # Save the best model
             torch.save(model.state_dict(), 'best_model.pth')
+            print(f"Validation F1 improved to {val_f1:.4f}. Model saved.")
         else:
             epochs_no_improve += 1
+            print(f"No improvement in validation F1 for {epochs_no_improve} epoch(s).")
+
             if epochs_no_improve >= early_stopping_patience:
                 print(f"Early stopping triggered after {epoch} epochs.")
                 break
 
     print("Training complete.")
 
+# -----------------------------
+# Evaluation Function
+# -----------------------------
 
 def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_metrics=False):
     """
@@ -257,10 +334,10 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
         model (nn.Module): EdgeClassifier model.
         device (str): Device to run the evaluation on (CPU or CUDA).
         loss_fn (nn.Module, optional): Loss function to compute loss. If None, loss is not calculated.
-        return_metrics (bool): If True, returns average loss and accuracy.
+        return_metrics (bool): If True, returns average loss, accuracy, and F1-score.
 
     Returns:
-        Tuple[float, float] or None: Returns (avg_loss, accuracy) if return_metrics is True.
+        Tuple[float, float, float] or None: Returns (avg_loss, accuracy, f1_score) if return_metrics is True.
     """
     model.eval()
     model.to(device)
@@ -271,49 +348,71 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     all_labels = []
     all_preds = []
 
-    with torch.no_grad():
-        batched_graph = dgl.batch(graphs)
-        batched_graph = batched_graph.to(device)
-        node_feats = batched_graph.ndata['feat'].to(device).float()
-        edge_feats = batched_graph.edata['feat'].to(device).float()
-        labels = batched_graph.edata['label'].to(device)
+    for g in graphs:
+        g = g.to(device)
+        node_feats = g.ndata['feat'].float()
+        edge_feats = g.edata['feat'].float()
+        labels = g.edata['label'].to(device)
 
-        logits = model(batched_graph, node_feats, edge_feats)
-        if loss_fn:
-            loss = loss_fn(logits, labels)
-            total_loss += loss.item() * batched_graph.number_of_edges()
+        with torch.no_grad():
+            logits = model(g, node_feats, edge_feats)
+            if loss_fn:
+                loss = loss_fn(logits, labels)
+                total_loss += loss.item() * g.number_of_edges()
 
-        _, predicted = torch.max(logits, dim=1)
-        correct = (predicted == labels).sum().item()
-        total_correct += correct
-        total_samples += batched_graph.number_of_edges()
+            _, predicted = torch.max(logits, dim=1)
+            correct = (predicted == labels).sum().item()
+            total_correct += correct
+            total_samples += g.number_of_edges()
 
-        all_labels.extend(labels.cpu().numpy())
-        all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(predicted.cpu().numpy())
 
     avg_loss = total_loss / total_samples if loss_fn else None
     accuracy = total_correct / total_samples
 
+    # Calculate F1 score for the positive class
+    if len(np.unique(all_labels)) == 1:
+        # Handle cases where only one class is present
+        f1 = f1_score(all_labels, all_preds, pos_label=1, average='binary', zero_division=0) if 1 in all_labels else 0.0
+    else:
+        f1 = f1_score(all_labels, all_preds, pos_label=1, average='binary', zero_division=0)
+
     if return_metrics:
-        return avg_loss, accuracy
+        return avg_loss, accuracy, f1
 
     if loss_fn:
-        print(f"Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+        print(f"Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}, F1-Score: {f1:.4f}")
     else:
-        print(f"Accuracy: {accuracy:.4f}")
+        print(f"Accuracy: {accuracy:.4f}, F1-Score: {f1:.4f}")
 
     print("\nConfusion Matrix:")
     print(confusion_matrix(all_labels, all_preds))
 
-    precision = precision_score(all_labels, all_preds, average='weighted', zero_division=0)
-    recall = recall_score(all_labels, all_preds, average='weighted', zero_division=0)
-    f1 = f1_score(all_labels, all_preds, average='weighted', zero_division=0)
-
-    print(f"\nPrecision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}")
-
     print("\nSample of Predictions vs Ground Truth:")
     for i in range(min(5, len(all_preds))):
         print(f"Prediction: {all_preds[i]}, Ground Truth: {all_labels[i]}")
+
+    # Additional Metrics for Label '1'
+    all_labels_np = np.array(all_labels)
+    all_preds_np = np.array(all_preds)
+
+    ground_truth_ones = np.sum(all_labels_np == 1)
+    true_positives = np.sum((all_labels_np == 1) & (all_preds_np == 1))
+    false_positives = np.sum((all_labels_np != 1) & (all_preds_np == 1))
+    predicted_ones = np.sum(all_preds_np == 1)
+
+    print("\n--- Detailed Metrics for Label '1' ---")
+    print(f"Total number of label '1' in ground truth: {ground_truth_ones}")
+    print(f"Number of correctly predicted label '1's (True Positives): {true_positives}")
+    print(f"Number of incorrectly predicted label '1's (False Positives): {false_positives}")
+    print(f"Total number of label '1's predicted: {predicted_ones}")
+
+    return None
+
+# -----------------------------
+# Main Function
+# -----------------------------
 
 def main(args):
     """
@@ -356,6 +455,23 @@ def main(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
 
+    # Move model to device
+    model.to(device)
+
+    # Add the computational graph to TensorBoard
+    if writer:
+        # Select a sample graph and move it to the device
+        sample_g = graphs[0].to(device)
+        node_feats = sample_g.ndata['feat'].float()
+        edge_feats = sample_g.edata['feat'].float()
+
+        # Add graph to TensorBoard
+        try:
+            writer.add_graph(model, (sample_g, node_feats, edge_feats))
+            print("Model graph added to TensorBoard.")
+        except Exception as e:
+            print(f"Failed to add graph to TensorBoard: {e}")
+
     num_graphs = len(graphs)
     train_size = int(args.train_ratio * num_graphs)
     val_size = int(args.val_ratio * num_graphs)
@@ -377,6 +493,7 @@ def main(args):
     print(f"Validation graphs: {len(val_graphs)}")
     print(f"Testing graphs: {len(test_graphs)}")
 
+    # Train the model
     train_edge_classifier(
         train_graphs,
         val_graphs,
@@ -385,21 +502,47 @@ def main(args):
         lr=args.lr,
         device=device,
         writer=writer,
-        early_stopping_patience=args.early_stopping_patience
+        early_stopping_patience=args.early_stopping_patience,
+        lambda_reg=args.lambda_reg  # Pass the regularization parameter
     )
 
+    # Load the best model
     if os.path.exists('best_model.pth'):
-        model.load_state_dict(torch.load('best_model.pth'))
+        model.load_state_dict(torch.load('best_model.pth', map_location=device))
         print("Loaded the best model from checkpoint.")
 
+    # Evaluate on validation set
     print("\n--- Validation Set Evaluation ---")
-    evaluate_edge_classifier(val_graphs, model, device=device, loss_fn=nn.CrossEntropyLoss())
+    val_metrics = evaluate_edge_classifier(
+        val_graphs, model, device=device, loss_fn=None, return_metrics=True  # Use default loss for final evaluation
+    )
+    if val_metrics:
+        val_loss, val_acc, val_f1 = val_metrics
+        if writer:
+            if val_loss is not None:
+                writer.add_scalar('Final Evaluation/Validation Loss', val_loss, 0)
+            writer.add_scalar('Final Evaluation/Validation Accuracy', val_acc, 0)
+            writer.add_scalar('Final Evaluation/Validation F1_Score', val_f1, 0)
 
+    # Evaluate on test set
     print("\n--- Test Set Evaluation ---")
-    evaluate_edge_classifier(test_graphs, model, device=device, loss_fn=nn.CrossEntropyLoss())
+    test_metrics = evaluate_edge_classifier(
+        test_graphs, model, device=device, loss_fn=None, return_metrics=True  # Use default loss for final evaluation
+    )
+    if test_metrics:
+        test_loss, test_acc, test_f1 = test_metrics
+        if writer:
+            if test_loss is not None:
+                writer.add_scalar('Final Evaluation/Test Loss', test_loss, 0)
+            writer.add_scalar('Final Evaluation/Test Accuracy', test_acc, 0)
+            writer.add_scalar('Final Evaluation/Test F1_Score', test_f1, 0)
 
     if writer:
         writer.close()
+
+# -----------------------------
+# Argument Parser
+# -----------------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Graph Edge Classification with GatedGCNConv")
@@ -411,9 +554,10 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
     parser.add_argument('--train_ratio', type=float, default=0.6, help='Proportion of data for training')
     parser.add_argument('--val_ratio', type=float, default=0.2, help='Proportion of data for validation')
-    parser.add_argument('--use_tensorboard', action='store_true', help='Enable TensorBoard logging')
+    parser.add_argument('--use_tensorboard', action='store_true', default=True, help='Enable TensorBoard logging')
     parser.add_argument('--log_dir', type=str, default='runs', help='Directory for TensorBoard logs')
     parser.add_argument('--early_stopping_patience', type=int, default=20, help='Patience for early stopping')
+    parser.add_argument('--lambda_reg', type=float, default=0.01, help='Regularization coefficient for minimizing \'1\' predictions')
 
     args = parser.parse_args()
     main(args)

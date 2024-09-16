@@ -348,8 +348,8 @@ def train_edge_classifier(
         y=all_train_labels
     )
     
-    # class_weights = torch.tensor([0.01, 0.99], dtype=torch.float).to(device)
-    class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
+    class_weights = torch.tensor([0.2, 0.8], dtype=torch.float).to(device)
+    # class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 
     loss_fn = nn.CrossEntropyLoss(weight=class_weights)
 
@@ -526,7 +526,9 @@ def main(args):
     Args:
         args (argparse.Namespace): Parsed command-line arguments.
     """
+    print(args.use_tensorboard)
     writer = SummaryWriter(log_dir=args.log_dir) if args.use_tensorboard else None
+    print(writer)
 
     # Load data
     try:
@@ -612,7 +614,7 @@ def main(args):
     evaluate_edge_classifier(
         test_graphs, model, device=device, loss_fn=nn.CrossEntropyLoss()
     )
-
+    
     if writer:
         writer.close()
 
@@ -672,6 +674,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--use_tensorboard',
         action='store_true',
+        default=True,
         help='Enable TensorBoard logging'
     )
     parser.add_argument(
