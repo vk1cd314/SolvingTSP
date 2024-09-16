@@ -13,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 import argparse
 from tqdm import tqdm
 import sys
+import numpy as np
 
 
 def load_csv_data(data_directory):
@@ -266,7 +267,29 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     f1 = f1_score(all_labels, all_preds, average='weighted', zero_division=0)
 
     print(f"\nPrecision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}")
+    
+        # **Begin: Additional Metrics for Label '1'**
+    all_labels_np = np.array(all_labels)
+    all_preds_np = np.array(all_preds)
 
+    # 1. Total number of label '1' in ground truth
+    ground_truth_ones = np.sum(all_labels_np == 1)
+
+    # 2. Number of correctly predicted label '1's (True Positives)
+    true_positives = np.sum((all_labels_np == 1) & (all_preds_np == 1))
+
+    # 3. Number of incorrectly predicted label '1's (False Positives)
+    false_positives = np.sum((all_labels_np != 1) & (all_preds_np == 1))
+
+    # 4. Total number of label '1's predicted (True Positives + False Positives)
+    predicted_ones = np.sum(all_preds_np == 1)
+
+    print("\n--- Detailed Metrics for Label '1' ---")
+    print(f"Total number of label '1' in ground truth: {ground_truth_ones}")
+    print(f"Number of correctly predicted label '1's (True Positives): {true_positives}")
+    print(f"Number of incorrectly predicted label '1's (False Positives): {false_positives}")
+    print(f"Total number of label '1's predicted: {predicted_ones}")
+    # **End: Additional Metrics for Label '1'**
     # print("\nSample of Predictions vs Ground Truth:")
     # for i in range(min(5, len(all_preds))):
     #     print(f"Prediction: {all_preds[i]}, Ground Truth: {all_labels[i]}")

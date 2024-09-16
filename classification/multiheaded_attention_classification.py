@@ -12,6 +12,7 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 import sys
+import numpy as np
 
 
 def load_csv_data(data_directory):
@@ -73,7 +74,7 @@ def construct_dgl_graphs(nodes_df, edges_df):
         # Assuming 'feat' is a single feature column; modify if multiple features
         node_feats = torch.tensor(nodes['feat'].astype(float).values).unsqueeze(1)
         edge_feats = torch.tensor(edges['feat'].astype(float).values).unsqueeze(1)
-        labels = torch.tensor(edges['label'].astype(int).values)
+        labels = torch.tensor(edges['label'].astype(int).values).float()  # Binary labels
 
         g = dgl.graph((src, dst), num_nodes=num_nodes)
         g.ndata['feat'] = node_feats
@@ -199,7 +200,7 @@ class EdgeClassifier(nn.Module):
     Args:
         in_feats (int): Size of input node features.
         hidden_size (int): Size of hidden layers.
-        num_classes (int): Number of classes for edge classification.
+        num_classes (int): Number of classes for edge classification (set to 1 for binary classification).
         edge_feat_size (int): Size of edge features.
         num_layers (int): Number of GraphAttentionLayer layers.
         dropout (float): Dropout rate for regularization.
@@ -251,11 +252,12 @@ class EdgeClassifier(nn.Module):
             )
         )
 
+        # For binary classification, output a single logit
         self.edge_mlp = nn.Sequential(
             nn.Linear(2 * hidden_size + edge_feat_size, hidden_size),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_size, num_classes)
+            nn.Linear(hidden_size, 1)  # Single output for binary classification
         )
 
     def forward(self, g, node_feats, edge_feats):
@@ -268,7 +270,7 @@ class EdgeClassifier(nn.Module):
             edge_feats (torch.Tensor): Edge features of shape (E, edge_feat_size).
 
         Returns:
-            torch.Tensor: Logits for edge classification of shape (E, num_classes).
+            torch.Tensor: Logits for edge classification of shape (E, 1).
         """
         h = node_feats
         e = edge_feats
@@ -283,11 +285,21 @@ class EdgeClassifier(nn.Module):
         src_h = h[src]  # (E, hidden_size)
         dst_h = h[dst]  # (E, hidden_size)
         edge_repr = torch.cat([src_h, dst_h, e], dim=1)  # [E, 2 * hidden_size + edge_feat_size]
-        logits = self.edge_mlp(edge_repr)
-        return logits
+        logits = self.edge_mlp(edge_repr)  # (E, 1)
+        return logits.squeeze(-1)  # (E,)
 
 
-def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001, device='cpu', writer=None, early_stopping_patience=20):
+def train_edge_classifier(
+    train_graphs, 
+    val_graphs, 
+    model, 
+    class_weights,          # Added parameter
+    epochs=100, 
+    lr=0.001, 
+    device='cpu', 
+    writer=None, 
+    early_stopping_patience=20
+):
     """
     Trains the edge classifier model.
 
@@ -295,6 +307,7 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
         train_graphs (List[dgl.DGLGraph]): List of DGL graphs for training.
         val_graphs (List[dgl.DGLGraph]): List of DGL graphs for validation.
         model (nn.Module): EdgeClassifier model.
+        class_weights (torch.Tensor): Tensor of class weights.
         epochs (int): Number of training epochs.
         lr (float): Learning rate.
         device (str): Device to run the training on (CPU or CUDA).
@@ -304,8 +317,12 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
     model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
-    loss_fn = nn.CrossEntropyLoss()
-
+    
+    # **Initialize the loss function with class weights**
+    # For BCEWithLogitsLoss, pos_weight should be set to (weight for class 1) / (weight for class 0)
+    pos_weight = class_weights[1] / class_weights[0]
+    loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    
     best_val_loss = float('inf')
     epochs_no_improve = 0
 
@@ -320,17 +337,22 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
         batched_graph = batched_graph.to(device)
         node_feats = batched_graph.ndata['feat'].to(device).float()
         edge_feats = batched_graph.edata['feat'].to(device).float()
-        labels = batched_graph.edata['label'].to(device)
+        labels = batched_graph.edata['label'].to(device)  # (E,)
 
         optimizer.zero_grad()
-        logits = model(batched_graph, node_feats, edge_feats)
+        logits = model(batched_graph, node_feats, edge_feats)  # (E,)
         loss = loss_fn(logits, labels)
         loss.backward()
         optimizer.step()
 
         epoch_loss += loss.item() * batched_graph.number_of_edges()
 
-        _, predicted = torch.max(logits, dim=1)
+        # Apply sigmoid to get probabilities
+        probs = torch.sigmoid(logits)
+        # Define a threshold; to ensure all true 1s are predicted, set threshold low enough
+        # This threshold can be adjusted based on validation set
+        threshold = 0.5  # Initial threshold; consider adjusting
+        predicted = (probs >= threshold).float()
         correct = (predicted == labels).sum().item()
         epoch_correct += correct
         total += batched_graph.number_of_edges()
@@ -345,7 +367,7 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
         print(f"Epoch {epoch}/{epochs} - Loss: {avg_loss:.4f}, Training Accuracy: {avg_acc:.4f}")
 
         # Evaluate on validation set for early stopping
-        val_loss, val_acc = evaluate_edge_classifier(val_graphs, model, device=device, loss_fn=loss_fn, return_metrics=True)
+        val_loss, val_acc = evaluate_edge_classifier(val_graphs, model, device=device, loss_fn=loss_fn, return_metrics=True, threshold=threshold)
         scheduler.step(val_loss)
 
         if writer:
@@ -366,7 +388,7 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
     print("Training complete.")
 
 
-def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_metrics=False):
+def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_metrics=False, threshold=0.5):
     """
     Evaluates the edge classifier model on validation and test sets.
 
@@ -376,6 +398,7 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
         device (str): Device to run the evaluation on (CPU or CUDA).
         loss_fn (nn.Module, optional): Loss function to compute loss. If None, loss is not calculated.
         return_metrics (bool): If True, returns average loss and accuracy.
+        threshold (float): Threshold for classifying edges as class 1.
 
     Returns:
         Tuple[float, float] or None: Returns (avg_loss, accuracy) if return_metrics is True.
@@ -394,14 +417,16 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
         batched_graph = batched_graph.to(device)
         node_feats = batched_graph.ndata['feat'].to(device).float()
         edge_feats = batched_graph.edata['feat'].to(device).float()
-        labels = batched_graph.edata['label'].to(device)
+        labels = batched_graph.edata['label'].to(device)  # (E,)
 
-        logits = model(batched_graph, node_feats, edge_feats)
+        logits = model(batched_graph, node_feats, edge_feats)  # (E,)
         if loss_fn:
             loss = loss_fn(logits, labels)
             total_loss += loss.item() * batched_graph.number_of_edges()
 
-        _, predicted = torch.max(logits, dim=1)
+        # Apply sigmoid to get probabilities
+        probs = torch.sigmoid(logits)
+        predicted = (probs >= threshold).float()
         correct = (predicted == labels).sum().item()
         total_correct += correct
         total_samples += batched_graph.number_of_edges()
@@ -423,15 +448,38 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     print("\nConfusion Matrix:")
     print(confusion_matrix(all_labels, all_preds))
 
-    precision = precision_score(all_labels, all_preds, average='weighted', zero_division=0)
-    recall = recall_score(all_labels, all_preds, average='weighted', zero_division=0)
-    f1 = f1_score(all_labels, all_preds, average='weighted', zero_division=0)
+    precision = precision_score(all_labels, all_preds, average='binary', zero_division=0)
+    recall = recall_score(all_labels, all_preds, average='binary', zero_division=0)
+    f1 = f1_score(all_labels, all_preds, average='binary', zero_division=0)
 
     print(f"\nPrecision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}")
 
     print("\nSample of Predictions vs Ground Truth:")
     for i in range(min(5, len(all_preds))):
-        print(f"Prediction: {all_preds[i]}, Ground Truth: {all_labels[i]}")
+        print(f"Prediction: {int(all_preds[i])}, Ground Truth: {int(all_labels[i])}")
+
+    # **Begin: Additional Metrics for Label '1'**
+    all_labels_np = np.array(all_labels)
+    all_preds_np = np.array(all_preds)
+
+    # 1. Total number of label '1' in ground truth
+    ground_truth_ones = np.sum(all_labels_np == 1)
+
+    # 2. Number of correctly predicted label '1's (True Positives)
+    true_positives = np.sum((all_labels_np == 1) & (all_preds_np == 1))
+
+    # 3. Number of incorrectly predicted label '1's (False Positives)
+    false_positives = np.sum((all_labels_np != 1) & (all_preds_np == 1))
+
+    # 4. Total number of label '1's predicted (True Positives + False Positives)
+    predicted_ones = np.sum(all_preds_np == 1)
+
+    print("\n--- Detailed Metrics for Label '1' ---")
+    print(f"Total number of label '1' in ground truth: {ground_truth_ones}")
+    print(f"Number of correctly predicted label '1's (True Positives): {true_positives}")
+    print(f"Number of incorrectly predicted label '1's (False Positives): {false_positives}")
+    print(f"Total number of label '1's predicted: {predicted_ones}")
+    # **End: Additional Metrics for Label '1'**
 
 
 def main(args):
@@ -458,7 +506,7 @@ def main(args):
     sample_graph = graphs[0]
     in_feats = sample_graph.ndata['feat'].shape[1]
     edge_feat_size = sample_graph.edata['feat'].shape[1]
-    num_classes = int(sample_graph.edata['label'].max().item() + 1)
+    num_classes = 1  # Binary classification
 
     hidden_size = args.hidden_size
     num_layers = args.num_layers
@@ -475,6 +523,16 @@ def main(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
 
+    # **Define Fixed Class Weights Here**
+    # Class 0 weight: 0.01, Class 1 weight: 0.99
+    class_weights = torch.tensor([0.1, 0.9], dtype=torch.float)
+    # For BCEWithLogitsLoss, pos_weight is (weight for class 1) / (weight for class 0)
+    pos_weight = class_weights[1] / class_weights[0]
+    pos_weight = pos_weight.to(device)
+    print(f"Using fixed class weights: Class 0: 0.1, Class 1: 0.9")
+    print(f"Calculated pos_weight for BCEWithLogitsLoss: {pos_weight.item()}")
+
+    # Split data into train, validation, and test sets
     num_graphs = len(graphs)
     train_size = int(args.train_ratio * num_graphs)
     val_size = int(args.val_ratio * num_graphs)
@@ -496,10 +554,12 @@ def main(args):
     print(f"Validation graphs: {len(val_graphs)}")
     print(f"Testing graphs: {len(test_graphs)}")
 
+    # **Pass class_weights to the training function**
     train_edge_classifier(
         train_graphs,
         val_graphs,
         model,
+        class_weights=class_weights,   # Added this argument
         epochs=args.epochs,
         lr=args.lr,
         device=device,
@@ -512,10 +572,10 @@ def main(args):
         print("Loaded the best model from checkpoint.")
 
     print("\n--- Validation Set Evaluation ---")
-    evaluate_edge_classifier(val_graphs, model, device=device, loss_fn=nn.CrossEntropyLoss())
+    evaluate_edge_classifier(val_graphs, model, device=device, loss_fn=nn.BCEWithLogitsLoss(pos_weight=pos_weight))
 
     print("\n--- Test Set Evaluation ---")
-    evaluate_edge_classifier(test_graphs, model, device=device, loss_fn=nn.CrossEntropyLoss())
+    evaluate_edge_classifier(test_graphs, model, device=device, loss_fn=nn.BCEWithLogitsLoss(pos_weight=pos_weight))
 
     if writer:
         writer.close()

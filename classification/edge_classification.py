@@ -12,7 +12,7 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 from torch.utils.tensorboard import SummaryWriter
 import argparse
 import sys
-
+import numpy as np
 
 def load_csv_data(data_directory):
     """
@@ -366,6 +366,7 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
     print("Training complete.")
 
 
+
 def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_metrics=False):
     """
     Evaluates the edge classifier model on validation and test sets.
@@ -432,6 +433,32 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     print("\nSample of Predictions vs Ground Truth:")
     for i in range(min(5, len(all_preds))):
         print(f"Prediction: {all_preds[i]}, Ground Truth: {all_labels[i]}")
+
+    # **Begin: Additional Metrics for Label '1'**
+    all_labels_np = np.array(all_labels)
+    all_preds_np = np.array(all_preds)
+    print(all_labels_np, len(all_labels_np))
+    print(all_preds_np)
+
+    # 1. Total number of label '1' in ground truth
+    ground_truth_ones = np.sum(all_labels_np == 1)
+
+    # 2. Number of correctly predicted label '1's (True Positives)
+    true_positives = np.sum((all_labels_np == 1) & (all_preds_np == 1))
+
+    # 3. Number of incorrectly predicted label '1's (False Positives)
+    false_positives = np.sum((all_labels_np != 1) & (all_preds_np == 1))
+
+    # 4. Total number of label '1's predicted (True Positives + False Positives)
+    predicted_ones = np.sum(all_preds_np == 1)
+
+    print("\n--- Detailed Metrics for Label '1' ---")
+    print(f"Total number of label '1' in ground truth: {ground_truth_ones}")
+    print(f"Number of correctly predicted label '1's (True Positives): {true_positives}")
+    print(f"Number of incorrectly predicted label '1's (False Positives): {false_positives}")
+    print(f"Total number of label '1's predicted: {predicted_ones}")
+    # **End: Additional Metrics for Label '1'**
+
 
 
 def main(args):
