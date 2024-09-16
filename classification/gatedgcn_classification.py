@@ -556,7 +556,7 @@ if __name__ == "__main__":
     parser.add_argument('--val_ratio', type=float, default=0.2, help='Proportion of data for validation')
     parser.add_argument('--use_tensorboard', action='store_true', default=True, help='Enable TensorBoard logging')
     parser.add_argument('--log_dir', type=str, default='runs', help='Directory for TensorBoard logs')
-    parser.add_argument('--early_stopping_patience', type=int, default=20, help='Patience for early stopping')
+    parser.add_argument('--early_stopping_patience', type=int, default=100, help='Patience for early stopping')
     parser.add_argument('--lambda_reg', type=float, default=0.01, help='Regularization coefficient for minimizing \'1\' predictions')
 
     args = parser.parse_args()

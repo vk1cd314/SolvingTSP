@@ -348,7 +348,7 @@ def train_edge_classifier(
         y=all_train_labels
     )
     
-    class_weights = torch.tensor([0.2, 0.8], dtype=torch.float).to(device)
+    class_weights = torch.tensor([0.1, 0.9], dtype=torch.float).to(device)
     # class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
 
     loss_fn = nn.CrossEntropyLoss(weight=class_weights)
@@ -686,7 +686,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--early_stopping_patience',
         type=int,
-        default=20,
+        default=100,
         help='Patience for early stopping'
     )
 
