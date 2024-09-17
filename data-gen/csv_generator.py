@@ -87,8 +87,8 @@ def process_multiple_graphs(graph_files, tour_files, output_dir):
         append_nodes_csv(num_nodes, nodes_csv, graph_id)
         append_graphs_csv(graphs_csv, graph_id)
 
-graph_path = './sparsified_graphs/'
-sol_path = './solved_sparsified/'
+graph_path = './generated_graphs/'
+sol_path = './solved_original/'
 
 graph_files = [] 
 for filename in os.listdir(graph_path):
