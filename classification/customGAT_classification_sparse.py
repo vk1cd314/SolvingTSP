@@ -89,7 +89,7 @@ def construct_dgl_graphs(nodes_df, edges_df):
             test_graphs.append(g)
         else:
             graphs.append(g)
-
+    print(len(graphs), len(test_graphs))
     return graphs, test_graphs
 
 

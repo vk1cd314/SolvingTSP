@@ -100,10 +100,11 @@ def process_multiple_graphs(graph_files, tour_files, output_dir, is_test):
 
     # Process each graph and tour file pair
     for graph_id, (graph_file, tour_file) in enumerate(zip(graph_files, tour_files)):
-        if graph_id > TEST_THRESH:
-            break
         if is_test:
             graph_id += NUM_SPRS_GRPH
+            if graph_id > TEST_THRESH + NUM_SPRS_GRPH:
+                break
+
         edges, num_nodes = read_graph(graph_file)
         tour_edges = read_tour(tour_file)
 

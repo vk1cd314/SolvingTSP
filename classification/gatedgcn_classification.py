@@ -378,9 +378,6 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     else:
         f1 = f1_score(all_labels, all_preds, pos_label=1, average='binary', zero_division=0)
 
-    if return_metrics:
-        return avg_loss, accuracy, f1
-
     if loss_fn:
         print(f"Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}, F1-Score: {f1:.4f}")
     else:
@@ -407,7 +404,8 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     print(f"Number of correctly predicted label '1's (True Positives): {true_positives}")
     print(f"Number of incorrectly predicted label '1's (False Positives): {false_positives}")
     print(f"Total number of label '1's predicted: {predicted_ones}")
-
+    if return_metrics:
+        return avg_loss, accuracy, f1
     return None
 
 # -----------------------------
@@ -458,19 +456,19 @@ def main(args):
     # Move model to device
     model.to(device)
 
-    # Add the computational graph to TensorBoard
-    if writer:
-        # Select a sample graph and move it to the device
-        sample_g = graphs[0].to(device)
-        node_feats = sample_g.ndata['feat'].float()
-        edge_feats = sample_g.edata['feat'].float()
-
-        # Add graph to TensorBoard
-        try:
-            writer.add_graph(model, (sample_g, node_feats, edge_feats))
-            print("Model graph added to TensorBoard.")
-        except Exception as e:
-            print(f"Failed to add graph to TensorBoard: {e}")
+    # # Add the computational graph to TensorBoard
+    # if writer:
+    #     # Select a sample graph and move it to the device
+    #     sample_g = graphs[0].to(device)
+    #     node_feats = sample_g.ndata['feat'].float()
+    #     edge_feats = sample_g.edata['feat'].float()
+    #
+    #     # Add graph to TensorBoard
+    #     try:
+    #         writer.add_graph(model, (sample_g, node_feats, edge_feats))
+    #         print("Model graph added to TensorBoard.")
+    #     except Exception as e:
+    #         print(f"Failed to add graph to TensorBoard: {e}")
 
     num_graphs = len(graphs)
     train_size = int(args.train_ratio * num_graphs)
@@ -549,15 +547,15 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', type=str, default='./generated-data', help='Directory containing data and meta.yaml')
     parser.add_argument('--hidden_size', type=int, default=64, help='Hidden layer size')
     parser.add_argument('--num_layers', type=int, default=3, help='Number of GatedGCNConv layers')
-    parser.add_argument('--dropout', type=float, default=0.5, help='Dropout rate')
-    parser.add_argument('--epochs', type=int, default=1000, help='Number of training epochs')
+    parser.add_argument('--dropout', type=float, default=0.0, help='Dropout rate')
+    parser.add_argument('--epochs', type=int, default=20, help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
     parser.add_argument('--train_ratio', type=float, default=0.6, help='Proportion of data for training')
     parser.add_argument('--val_ratio', type=float, default=0.2, help='Proportion of data for validation')
     parser.add_argument('--use_tensorboard', action='store_true', default=True, help='Enable TensorBoard logging')
     parser.add_argument('--log_dir', type=str, default='runs', help='Directory for TensorBoard logs')
     parser.add_argument('--early_stopping_patience', type=int, default=100, help='Patience for early stopping')
-    parser.add_argument('--lambda_reg', type=float, default=0.01, help='Regularization coefficient for minimizing \'1\' predictions')
+    parser.add_argument('--lambda_reg', type=float, default=0.5, help='Regularization coefficient for minimizing \'1\' predictions')
 
     args = parser.parse_args()
     main(args)

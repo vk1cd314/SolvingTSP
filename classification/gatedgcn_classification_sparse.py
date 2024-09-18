@@ -77,7 +77,6 @@ def load_csv_data(data_directory):
 
     nodes_df = pd.read_csv(node_file)
     edges_df = pd.read_csv(edge_file)
-
     return nodes_df, edges_df
 
 
@@ -121,7 +120,6 @@ def construct_dgl_graphs(nodes_df, edges_df):
             test_graphs.append(g)
         else:
             graphs.append(g)
-
     return graphs, test_graphs
 
 # -----------------------------
@@ -244,7 +242,7 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
     classes = np.unique(all_train_labels)
     class_weights_np = compute_class_weight(class_weight='balanced', classes=classes, y=all_train_labels)
     #class_weights = torch.tensor(class_weights_np, dtype=torch.float).to(device)
-    class_weights = torch.tensor([0.001, 0.999], dtype=torch.float).to(device)
+    class_weights = torch.tensor([0.01, 0.99], dtype=torch.float).to(device)
     # Initialize Custom Loss
     loss_fn = CustomLoss(class_weights=class_weights, lambda_reg=lambda_reg)
 
@@ -326,10 +324,80 @@ def train_edge_classifier(train_graphs, val_graphs, model, epochs=100, lr=0.001,
     print("Training complete.")
 
 # -----------------------------
+# Plotting
+# -----------------------------
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.ticker import MaxNLocator
+
+# Enable LaTeX rendering for plots
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+
+def plot_correct_1_predictions(ground_truth, predicted):
+    """
+    Plot the percentage of correctly predicted '1' edges and total number of '1' edges.
+    
+    Args:
+        ground_truth (list or numpy array): True labels for edges.
+        predicted (list or numpy array): Predicted labels for edges.
+    """
+    ground_truth = np.array(ground_truth)
+    predicted = np.array(predicted)
+
+    # Calculate total '1' edges in ground truth and number of correctly predicted '1' edges
+    total_1_edges = np.sum(ground_truth == 1)
+    correctly_predicted_1_edges = np.sum((ground_truth == 1) & (predicted == 1))
+
+    # Percentage of correctly predicted '1' edges
+    correct_1_percentage = (correctly_predicted_1_edges / total_1_edges) * 100 if total_1_edges > 0 else 0
+
+    # Total number of edges
+    total_edges = len(ground_truth)
+
+    # Plotting
+    fig, ax = plt.subplots()
+    ax.bar(['Total "1" edges', 'Correctly Predicted "1" edges'], [total_1_edges, correctly_predicted_1_edges], color=['blue', 'green'])
+    
+    ax.set_ylabel(r'\textbf{Number of Edges}')
+    ax.set_title(r'\textbf{Prediction of "1" Edges}')
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+    # Add percentage text
+    ax.text(1, correctly_predicted_1_edges + 0.5, f"{correct_1_percentage:.2f}\%", ha='center', fontsize=12)
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_total_edges(ground_truth):
+    """
+    Plot the total number of edges and the number of '1' edges in the ground truth.
+    
+    Args:
+        ground_truth (list or numpy array): True labels for edges.
+    """
+    ground_truth = np.array(ground_truth)
+
+    # Calculate total number of edges and '1' edges
+    total_edges = len(ground_truth)
+    total_1_edges = np.sum(ground_truth == 1)
+
+    # Plotting
+    fig, ax = plt.subplots()
+    ax.bar(['Total Edges', '"1" Edges'], [total_edges, total_1_edges], color=['orange', 'blue'])
+
+    ax.set_ylabel(r'\textbf{Number of Edges}')
+    ax.set_title(r'\textbf{Total Edges vs "1" Edges}')
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+    plt.tight_layout()
+    plt.show()
+
+# -----------------------------
 # Evaluation Function
 # -----------------------------
 
-def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_metrics=False):
+def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_metrics=False, plot_results=False):
     """
     Evaluates the edge classifier model on validation and test sets.
 
@@ -408,9 +476,13 @@ def evaluate_edge_classifier(graphs, model, device='cpu', loss_fn=None, return_m
     print(f"Number of correctly predicted label '1's (True Positives): {true_positives}")
     print(f"Number of incorrectly predicted label '1's (False Positives): {false_positives}")
     print(f"Total number of label '1's predicted: {predicted_ones}")
+
+    if plot_results:
+        plot_correct_1_predictions(all_labels_np, all_preds_np)
+        plot_total_edges(all_labels_np)
+
     if return_metrics:
         return avg_loss, accuracy, f1
-
 
     return None
 
@@ -434,6 +506,7 @@ def main(args):
         sys.exit(1)
 
     graphs, test_graphs = construct_dgl_graphs(nodes_df, edges_df)
+    print(len(graphs), len(test_graphs))
 
     if len(graphs) == 0:
         print("No graphs found. Exiting.")
@@ -462,20 +535,20 @@ def main(args):
     # Move model to device
     model.to(device)
 
-    # Add the computational graph to TensorBoard
-    if writer:
-        # Select a sample graph and move it to the device
-        sample_g = graphs[0].to(device)
-        node_feats = sample_g.ndata['feat'].float()
-        edge_feats = sample_g.edata['feat'].float()
-
-        # Add graph to TensorBoard
-        try:
-            writer.add_graph(model, (sample_g, node_feats, edge_feats))
-            print("Model graph added to TensorBoard.")
-        except Exception as e:
-            print(f"Failed to add graph to TensorBoard: {e}")
-
+    # # Add the computational graph to TensorBoard
+    # if writer:
+    #     # Select a sample graph and move it to the device
+    #     sample_g = graphs[0].to(device)
+    #     node_feats = sample_g.ndata['feat'].float()
+    #     edge_feats = sample_g.edata['feat'].float()
+    #
+    #     # Add graph to TensorBoard
+    #     try:
+    #         writer.add_graph(model, (sample_g, node_feats, edge_feats))
+    #         print("Model graph added to TensorBoard.")
+    #     except Exception as e:
+    #         print(f"Failed to add graph to TensorBoard: {e}")
+    
     num_graphs = len(graphs)
     train_size = int(args.train_ratio * num_graphs)
     val_size = int(args.val_ratio * num_graphs)
@@ -483,7 +556,6 @@ def main(args):
 
     
     train_graphs, val_graphs = train_test_split(graphs, train_size=train_size, random_state=32, shuffle=True)
-
 
     print(f"Total graphs: {num_graphs}")
     print(f"Training graphs: {len(train_graphs)}")
@@ -546,15 +618,15 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', type=str, default='./generated-data', help='Directory containing data and meta.yaml')
     parser.add_argument('--hidden_size', type=int, default=64, help='Hidden layer size')
     parser.add_argument('--num_layers', type=int, default=3, help='Number of GatedGCNConv layers')
-    parser.add_argument('--dropout', type=float, default=0.5, help='Dropout rate')
-    parser.add_argument('--epochs', type=int, default=1000, help='Number of training epochs')
+    parser.add_argument('--dropout', type=float, default=0.0, help='Dropout rate')
+    parser.add_argument('--epochs', type=int, default=20, help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
     parser.add_argument('--train_ratio', type=float, default=0.6, help='Proportion of data for training')
     parser.add_argument('--val_ratio', type=float, default=0.2, help='Proportion of data for validation')
     parser.add_argument('--use_tensorboard', action='store_true', default=True, help='Enable TensorBoard logging')
     parser.add_argument('--log_dir', type=str, default='runs', help='Directory for TensorBoard logs')
-    parser.add_argument('--early_stopping_patience', type=int, default=100, help='Patience for early stopping')
-    parser.add_argument('--lambda_reg', type=float, default=0.01, help='Regularization coefficient for minimizing \'1\' predictions')
+    parser.add_argument('--early_stopping_patience', type=int, default=10, help='Patience for early stopping')
+    parser.add_argument('--lambda_reg', type=float, default=1, help='Regularization coefficient for minimizing \'1\' predictions')
 
     args = parser.parse_args()
     main(args)
