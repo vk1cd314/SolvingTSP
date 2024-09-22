@@ -67,8 +67,9 @@ int main(int argc, char **argv) {
     for (int i = 0; i < (int) edge_list.size(); ++i) {
       auto &[u, v, edge_freq_e] = edge_list[i];
       int count_quad_avail = 0;
+      int tried = 0, max_tries = 100;
 
-      while (count_quad_avail < QUAD_NO) {
+      while (count_quad_avail < QUAD_NO and tried < QUAD_NO * max_tries) {
         int u1 = rand() % vertices;
         while (u1 == u || u1 == v)
           u1 = rand() % vertices;
@@ -78,6 +79,7 @@ int main(int argc, char **argv) {
         int freq = get_freq(u, v, u1, v1);
         if (freq) count_quad_avail += 1;
         edge_freq_e += freq;
+        tried += 1;
       }
 
       if (count_quad_avail) edge_freq_e /= count_quad_avail;

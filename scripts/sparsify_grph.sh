@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Constants
-GRAPH_SIZE=100               # Size of each graph
-GRAPH_NUMBR=1000             # Number of graphs to generate
-GRAPH_DIR="generated_graphs" # Directory for generated graphs
-SPARSE_DIR="sparsified_graphs" # Directory for sparsified graphs
-SOLVED_ORIG_DIR="solved_original" # Directory for original graph solutions
-SOLVED_SPARSE_DIR="solved_sparsified" # Directory for sparsified graph solutions
-NUMBER_OF_TURNS=5
+GRAPH_SIZE=300               # Size of each graph
+GRAPH_NUMBR=1             # Number of graphs to generate
+GRAPH_DIR="test-generated_graphs" # Directory for generated graphs
+SPARSE_DIR="test-sparsified_graphs" # Directory for sparsified graphs
+SOLVED_ORIG_DIR="test-solved_original" # Directory for original graph solutions
+SOLVED_SPARSE_DIR="test-solved_sparsified" # Directory for sparsified graph solutions
+NUMBER_OF_TURNS=10
 # Clear directories
 echo "Clearing directories..."
 rm -rf $GRAPH_DIR $SPARSE_DIR $SOLVED_ORIG_DIR $SOLVED_SPARSE_DIR
@@ -35,16 +35,16 @@ for i in $(seq 1 $GRAPH_NUMBR); do
     SOLVED_SPARSE_FILE="${SOLVED_SPARSE_DIR}/sparse_graph_${i}.sol"
     
     # Sparsify the graph and store it
-    ./freqquad $INPUT_GRAPH_FILE $NUMBER_OF_TURNS $i > $SPARSE_GRAPH_FILE
-    echo "Sparsified graph saved to $SPARSE_GRAPH_FILE"
+    # ./freqquad $INPUT_GRAPH_FILE $NUMBER_OF_TURNS $i > $SPARSE_GRAPH_FILE
+    # echo "Sparsified graph saved to $SPARSE_GRAPH_FILE"
     
     # Solve the original graph and save the result
     ./concorde-bin -o $SOLVED_ORIG_FILE -N 10 $INPUT_GRAPH_FILE
     echo "Solved original graph $INPUT_GRAPH_FILE and stored result in $SOLVED_ORIG_FILE"
     
     # Solve the sparsified graph and save the result
-    ./concorde-bin -o $SOLVED_SPARSE_FILE -N 10 $SPARSE_GRAPH_FILE
-    echo "Solved sparsified graph $SPARSE_GRAPH_FILE and stored result in $SOLVED_SPARSE_FILE"
+    # ./concorde-bin -o $SOLVED_SPARSE_FILE -N 10 $SPARSE_GRAPH_FILE
+    # echo "Solved sparsified graph $SPARSE_GRAPH_FILE and stored result in $SOLVED_SPARSE_FILE"
 done
 
 echo "All graphs generated, sparsified, and solved!"

@@ -456,40 +456,43 @@ def main(args):
     # Move model to device
     model.to(device)
 
-    # # Add the computational graph to TensorBoard
-    # if writer:
-    #     # Select a sample graph and move it to the device
-    #     sample_g = graphs[0].to(device)
-    #     node_feats = sample_g.ndata['feat'].float()
-    #     edge_feats = sample_g.edata['feat'].float()
-    #
-    #     # Add graph to TensorBoard
-    #     try:
-    #         writer.add_graph(model, (sample_g, node_feats, edge_feats))
-    #         print("Model graph added to TensorBoard.")
-    #     except Exception as e:
-    #         print(f"Failed to add graph to TensorBoard: {e}")
+    # Remove Test Split: Train on all graphs and use a validation split only
+    # -------------------------------------------------
+    # Original Code:
+    # num_graphs = len(graphs)
+    # train_size = int(args.train_ratio * num_graphs)
+    # val_size = int(args.val_ratio * num_graphs)
+    # test_size = num_graphs - train_size - val_size  # Ensures all graphs are used
 
+    # if train_size == 0 or val_size == 0 or test_size == 0:
+    #     print("Insufficient data for the specified train/val/test split ratios.")
+    #     sys.exit(1)
+
+    # train_graphs, temp_graphs = train_test_split(
+    #     graphs, train_size=train_size, random_state=42, shuffle=True
+    # )
+    # val_graphs, test_graphs = train_test_split(
+    #     temp_graphs, test_size=test_size, random_state=42, shuffle=True
+    # )
+
+    # Modified Code: Split into Train and Validation only
     num_graphs = len(graphs)
     train_size = int(args.train_ratio * num_graphs)
-    val_size = int(args.val_ratio * num_graphs)
-    test_size = num_graphs - train_size - val_size  # Ensures all graphs are used
+    val_size = num_graphs - train_size  # Remaining for validation
 
-    if train_size == 0 or val_size == 0 or test_size == 0:
-        print("Insufficient data for the specified train/val/test split ratios.")
+    if train_size == 0 or val_size == 0:
+        print("Insufficient data for the specified train/val split ratios.")
         sys.exit(1)
 
-    train_graphs, temp_graphs = train_test_split(
+    train_graphs, val_graphs = train_test_split(
         graphs, train_size=train_size, random_state=42, shuffle=True
-    )
-    val_graphs, test_graphs = train_test_split(
-        temp_graphs, test_size=test_size, random_state=42, shuffle=True
     )
 
     print(f"Total graphs: {num_graphs}")
     print(f"Training graphs: {len(train_graphs)}")
     print(f"Validation graphs: {len(val_graphs)}")
-    print(f"Testing graphs: {len(test_graphs)}")
+    # Removed Test graphs
+    # -------------------------------------------------
 
     # Train the model
     train_edge_classifier(
@@ -504,36 +507,11 @@ def main(args):
         lambda_reg=args.lambda_reg  # Pass the regularization parameter
     )
 
-    # Load the best model
+    # Save the best model
     if os.path.exists('best_model.pth'):
-        model.load_state_dict(torch.load('best_model.pth', map_location=device))
-        print("Loaded the best model from checkpoint.")
-
-    # Evaluate on validation set
-    print("\n--- Validation Set Evaluation ---")
-    val_metrics = evaluate_edge_classifier(
-        val_graphs, model, device=device, loss_fn=None, return_metrics=True  # Use default loss for final evaluation
-    )
-    if val_metrics:
-        val_loss, val_acc, val_f1 = val_metrics
-        if writer:
-            if val_loss is not None:
-                writer.add_scalar('Final Evaluation/Validation Loss', val_loss, 0)
-            writer.add_scalar('Final Evaluation/Validation Accuracy', val_acc, 0)
-            writer.add_scalar('Final Evaluation/Validation F1_Score', val_f1, 0)
-
-    # Evaluate on test set
-    print("\n--- Test Set Evaluation ---")
-    test_metrics = evaluate_edge_classifier(
-        test_graphs, model, device=device, loss_fn=None, return_metrics=True  # Use default loss for final evaluation
-    )
-    if test_metrics:
-        test_loss, test_acc, test_f1 = test_metrics
-        if writer:
-            if test_loss is not None:
-                writer.add_scalar('Final Evaluation/Test Loss', test_loss, 0)
-            writer.add_scalar('Final Evaluation/Test Accuracy', test_acc, 0)
-            writer.add_scalar('Final Evaluation/Test F1_Score', test_f1, 0)
+        print("Best model saved as 'best_model.pth'. You can use this model for testing in a separate script.")
+    else:
+        print("Best model not found. Ensure training was successful and the model was saved.")
 
     if writer:
         writer.close()
@@ -550,12 +528,15 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', type=float, default=0.0, help='Dropout rate')
     parser.add_argument('--epochs', type=int, default=20, help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
-    parser.add_argument('--train_ratio', type=float, default=0.6, help='Proportion of data for training')
-    parser.add_argument('--val_ratio', type=float, default=0.2, help='Proportion of data for validation')
+    parser.add_argument('--train_ratio', type=float, default=0.8, help='Proportion of data for training')  # Adjusted default
+    parser.add_argument('--val_ratio', type=float, default=0.2, help='Proportion of data for validation')  # Adjusted for clarity
     parser.add_argument('--use_tensorboard', action='store_true', default=True, help='Enable TensorBoard logging')
     parser.add_argument('--log_dir', type=str, default='runs', help='Directory for TensorBoard logs')
-    parser.add_argument('--early_stopping_patience', type=int, default=100, help='Patience for early stopping')
+    parser.add_argument('--early_stopping_patience', type=int, default=20, help='Patience for early stopping')  # Adjusted default
     parser.add_argument('--lambda_reg', type=float, default=0.5, help='Regularization coefficient for minimizing \'1\' predictions')
+
+    # Remove test_ratio argument as we're no longer splitting into test set
+    # parser.add_argument('--test_ratio', type=float, default=0.2, help='Proportion of data for testing')  # Removed
 
     args = parser.parse_args()
     main(args)

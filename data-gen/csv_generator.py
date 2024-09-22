@@ -87,8 +87,8 @@ def process_multiple_graphs(graph_files, tour_files, output_dir):
         append_nodes_csv(num_nodes, nodes_csv, graph_id)
         append_graphs_csv(graphs_csv, graph_id)
 
-graph_path = './generated_graphs/'
-sol_path = './solved_original/'
+graph_path = './test-generated_graphs/'
+sol_path = './test-solved_original/'
 
 graph_files = [] 
 for filename in os.listdir(graph_path):
@@ -104,7 +104,7 @@ for filename in os.listdir(sol_path):
 graph_files=sorted(graph_files)
 tour_files=sorted(tour_files)
 
-output_dir = './generated-data/'
+output_dir = './test-data/'
 dataname = 'tspdata/'
 data_dir = os.path.join(output_dir, dataname)
 if os.path.exists(data_dir) and os.path.isdir(data_dir):
