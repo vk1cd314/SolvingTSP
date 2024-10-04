@@ -529,11 +529,10 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=20, help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
     parser.add_argument('--train_ratio', type=float, default=0.8, help='Proportion of data for training')  # Adjusted default
-    parser.add_argument('--val_ratio', type=float, default=0.2, help='Proportion of data for validation')  # Adjusted for clarity
+    parser.add_argument('--train_ratio', type=float, default=0.8, help='Proportion of data for training')
     parser.add_argument('--use_tensorboard', action='store_true', default=True, help='Enable TensorBoard logging')
     parser.add_argument('--log_dir', type=str, default='runs', help='Directory for TensorBoard logs')
     parser.add_argument('--early_stopping_patience', type=int, default=20, help='Patience for early stopping')  # Adjusted default
-    parser.add_argument('--lambda_reg', type=float, default=0.5, help='Regularization coefficient for minimizing \'1\' predictions')
 
     # Remove test_ratio argument as we're no longer splitting into test set
     # parser.add_argument('--test_ratio', type=float, default=0.2, help='Proportion of data for testing')  # Removed
