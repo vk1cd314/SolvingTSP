@@ -24,7 +24,7 @@ def read_graph(graph_file):
         for line in f:
             src, dst, weight = line.strip().split()
             edges.append((int(src), int(dst), int(weight)))
-    return edges, num_nodes
+    return edges, int(num_nodes)
 
 def read_tour(tour_file):
     """Reads the tour file and returns a set of edges (src, dst) in the tour."""
@@ -110,8 +110,8 @@ def process_multiple_graphs(graph_files, tour_files, feature_files_dict, output_
         append_nodes_csv(num_nodes, nodes_csv, graph_id)
         append_graphs_csv(graphs_csv, graph_id)
 
-graph_path = './test-generated_graphs/'
-sol_path = './test-solved_original/'
+graph_path = './generated_graphs/'
+sol_path = './solved_graphs/'
 
 graph_files = [] 
 for filename in os.listdir(graph_path):
@@ -136,7 +136,7 @@ feature_files_dict = {
     'fe': [os.path.join(features_path, 'fc', f) for f in sorted(os.listdir(os.path.join(features_path, 'fc')))],
     'ff': [os.path.join(features_path, 'fc', f) for f in sorted(os.listdir(os.path.join(features_path, 'fc')))],
 }
-selected_features = ["fa", 'fb']
+selected_features = ['fa', 'fb', 'fc', 'fd', 'fe', 'ff']
 filtered_dict = {feature: files for feature, files in feature_files_dict.items() if feature in selected_features}
 
 data_dir = os.path.join(output_dir, dataname)

@@ -10,6 +10,11 @@ SOLVED_DIR="solved_graphs"
 mkdir -p $GRAPH_DIR
 mkdir -p $SOLVED_DIR
 
+# Cleanup old graph files before generating new ones
+echo "Cleaning up existing graph files..."
+rm -f ${GRAPH_DIR}/*.txt
+rm -f ${SOLVED_DIR}/*.sol
+
 # Generate random graphs
 for i in $(seq 1 $GRAPH_NUMBR); do
     RANDOM_SEED=$RANDOM  # Generate a random seed
