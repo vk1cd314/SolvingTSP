@@ -1,1 +1,6 @@
 .env
+generated_graphs/
+test-data/
+test-generated-graphs/
+test-solved_original/
+test-sparsified_graph
