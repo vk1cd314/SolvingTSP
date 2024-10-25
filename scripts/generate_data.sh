@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Constants
-GRAPH_SIZE=20  
-GRAPH_NUMBR=100  
+GRAPH_SIZE=100  
+GRAPH_NUMBR=1000  
 GRAPH_DIR="generated_graphs"  
 SOLVED_DIR="solved_graphs"  
 

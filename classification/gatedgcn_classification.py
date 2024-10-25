@@ -81,6 +81,8 @@ def load_csv_data(data_directory):
     return nodes_df, edges_df
 
 
+
+
 def construct_dgl_graphs(nodes_df, edges_df):
     """
     Constructs a list of DGL graphs from node and edge data.
@@ -106,21 +108,72 @@ def construct_dgl_graphs(nodes_df, edges_df):
         src = edges['src_id'].map(node_id_map).tolist()
         dst = edges['dst_id'].map(node_id_map).tolist()
 
-        # Assuming 'feat' is a single feature column; modify if multiple features
-        node_feats = torch.tensor(nodes['feat'].astype(float).values).unsqueeze(1)
-        edge_feats = torch.tensor(edges['feat'].astype(float).values).unsqueeze(1)
-        labels = torch.tensor(edges['label'].astype(int).values)
+        # Parse node features
+        node_feat_list = []
+        for idx, feat in enumerate(nodes['feat']):
+            if isinstance(feat, str):
+                try:
+                    feats = [float(x) for x in feat.split(',')]
+                    node_feat_list.append(feats)
+                except ValueError as e:
+                    print(f"Error parsing node features for graph {gid}, node index {idx}: {e}")
+                    # Handle the error as needed, e.g., skip the node or assign default features
+                    node_feat_list.append([0.0])  # Example: default to a single zero
+            elif isinstance(feat, (int, float)):
+                node_feat_list.append([float(feat)])
+            else:
+                print(f"Unsupported feature type for node in graph {gid}, node index {idx}: {type(feat)}")
+                node_feat_list.append([0.0])  # Example: default to a single zero
 
+        # Determine the maximum number of node features
+        max_node_feat_length = max(len(f) for f in node_feat_list)
+        # Pad node features with zeros if necessary
+        node_feat_list_padded = [
+            f + [0.0] * (max_node_feat_length - len(f)) for f in node_feat_list
+        ]
+
+        node_feats = torch.tensor(node_feat_list_padded, dtype=torch.float)
+
+        # Parse edge features
+        edge_feat_list = []
+        for idx, feat in enumerate(edges['feat']):
+            if isinstance(feat, str):
+                try:
+                    feats = [float(x) for x in feat.split(',')]
+                    edge_feat_list.append(feats)
+                except ValueError as e:
+                    print(f"Error parsing edge features for graph {gid}, edge index {idx}: {e}")
+                    # Handle the error as needed, e.g., skip the edge or assign default features
+                    edge_feat_list.append([0.0])  # Example: default to a single zero
+            elif isinstance(feat, (int, float)):
+                edge_feat_list.append([float(feat)])
+            else:
+                print(f"Unsupported feature type for edge in graph {gid}, edge index {idx}: {type(feat)}")
+                edge_feat_list.append([0.0])  # Example: default to a single zero
+
+        # Determine the maximum number of edge features
+        max_edge_feat_length = max(len(f) for f in edge_feat_list)
+        # Pad edge features with zeros if necessary
+        edge_feat_list_padded = [
+            f + [0.0] * (max_edge_feat_length - len(f)) for f in edge_feat_list
+        ]
+
+        edge_feats = torch.tensor(edge_feat_list_padded, dtype=torch.float)
+
+        # Ensure labels are integers and of type long
+        labels = torch.tensor(edges['label'].astype(int).values, dtype=torch.long)
+
+        # Create the DGL graph
         g = dgl.graph((src, dst), num_nodes=num_nodes)
         g.ndata['feat'] = node_feats
         g.edata['feat'] = edge_feats
+        print(f"Number of edge features for graph {gid}: {len(edge_feats)}")
         g.edata['label'] = labels
 
         graphs.append(g)
 
     return graphs
-
-# -----------------------------
+#-----------------------------
 # Model Definition
 # -----------------------------
 
@@ -136,7 +189,7 @@ class EdgeClassifier(nn.Module):
         num_layers (int): Number of GatedGCNConv layers.
         dropout (float): Dropout rate for regularization.
     """
-    def __init__(self, in_feats, hidden_size, num_classes, edge_feat_size=1, num_layers=3, dropout=0.5):
+    def __init__(self, in_feats, hidden_size, num_classes, edge_feat_size=7, num_layers=3, dropout=0.5):
         super(EdgeClassifier, self).__init__()
         self.num_layers = num_layers
         self.dropout = dropout
@@ -522,7 +575,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Graph Edge Classification with GatedGCNConv")
-    parser.add_argument('--data_dir', type=str, default='./generated-data', help='Directory containing data and meta.yaml')
+    parser.add_argument('--data_dir', type=str, default='./test-data', help='Directory containing data and meta.yaml')
     parser.add_argument('--hidden_size', type=int, default=64, help='Hidden layer size')
     parser.add_argument('--num_layers', type=int, default=3, help='Number of GatedGCNConv layers')
     parser.add_argument('--dropout', type=float, default=0.0, help='Dropout rate')
