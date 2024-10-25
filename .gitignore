@@ -3,4 +3,5 @@ generated_graphs/
 test-data/
 test-generated-graphs/
 test-solved_original/
-test-sparsified_graph
+test-sparsified_graph/
+solved-graphs/
